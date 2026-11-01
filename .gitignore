@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+*/node_modules/
+*/*/node_modules/
+.pnp/
+.pnp.js
+
+# Production / Build outputs
+dist/
+*/dist/
+build/
+*/build/
+out/
+.next/
+.turbo/
+dist-ssr/
+*.local
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Swift / iOS
+.build/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Android / Gradle
+.gradle/
+local.properties
+captures/
+*.apk
+*.ap_
+*.aab

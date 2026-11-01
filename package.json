@@ -1,0 +1,20 @@
+{
+  "name": "friends-app-ecosystem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-platform Friends & Events Connecting Ecosystem (Web, Native iOS Swift, Native Android Kotlin, Admin)",
+  "workspaces": [
+    "packages/*",
+    "apps/web",
+    "apps/admin"
+  ],
+  "scripts": {
+    "web": "npm run dev --workspace=apps/web",
+    "admin": "npm run dev --workspace=apps/admin",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
