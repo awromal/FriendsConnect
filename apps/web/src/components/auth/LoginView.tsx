@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   ShieldCheck,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { AuthSession, UserRole } from '@friends/shared';
 import { authService, DEFAULT_ACCOUNTS } from '../../services/authService';
+import { rateLimiter } from '../../services/rateLimiter';
 
 interface LoginViewProps {
   onLoginSuccess: (session: AuthSession) => void;
@@ -38,6 +39,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [fullName, setFullName] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [adminPasscode, setAdminPasscode] = useState('ADMIN-SECURE-2026');
+
+  // Security Rate Limiter Cooldown (in seconds)
+  const [cooldownSeconds, setCooldownSeconds] = useState<number>(() => {
+    return Math.max(
+      rateLimiter.getRemainingCooldown('auth_login'),
+      rateLimiter.getRemainingCooldown('auth_signup'),
+      rateLimiter.getRemainingCooldown('auth_otp')
+    );
+  });
+
+  // Countdown timer for rate limiter cooldown
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
 
   // State
   const [showPassword, setShowPassword] = useState(false);
@@ -75,14 +94,21 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         setOtpCode(res.previewOtp);
       }
     } catch (err: any) {
+      const rem = rateLimiter.getRemainingCooldown('auth_otp');
+      if (rem > 0) setCooldownSeconds(rem);
       setError(err.message || 'Failed to dispatch verification code.');
     }
   };
 
-  // Submit Handler
+  // Submit Handler with Rate Limiter protection
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (cooldownSeconds > 0) {
+      setError(`Security cooldown active. Please wait ${cooldownSeconds} seconds before trying again.`);
+      return;
+    }
 
     try {
       // 1. Sign up new user
@@ -120,6 +146,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         return;
       }
     } catch (err: any) {
+      const rem = Math.max(
+        rateLimiter.getRemainingCooldown('auth_login'),
+        rateLimiter.getRemainingCooldown('auth_signup'),
+        rateLimiter.getRemainingCooldown('auth_otp')
+      );
+      if (rem > 0) {
+        setCooldownSeconds(rem);
+      }
       setError(err.message || 'Authentication failed. Please check your credentials.');
     }
   };
@@ -322,7 +356,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            {/* Email Field */}
+            {/* Email Field with Strict Gmail Verification */}
             <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="text-xs font-semibold text-zinc-300">
@@ -330,18 +364,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     ? 'Administrator Email'
                     : activePortal === 'organizer'
                     ? 'Organization Host Email'
-                    : 'Registered Email Address'}
+                    : 'Google Mail Address (@gmail.com)'}
                 </label>
                 {email && (
                   <span
-                    className={`text-[10px] font-medium ${
-                      authService.validateEmailFormat(email)
-                        ? 'text-zinc-400'
-                        : 'text-amber-400'
+                    className={`text-[10px] font-bold ${
+                      authService.validateUserEmail(email, activePortal === 'user' ? 'user' : 'super_admin')
+                        ? 'text-emerald-400'
+                        : 'text-red-400'
                     }`}
                   >
-                    {authService.validateEmailFormat(email)
-                      ? '✓ Valid Email'
+                    {authService.validateUserEmail(email, activePortal === 'user' ? 'user' : 'super_admin')
+                      ? '✓ Verified @gmail.com'
+                      : activePortal === 'user'
+                      ? '⚠ Only genuine @gmail.com allowed'
                       : 'Format: name@domain.com'}
                   </span>
                 )}
@@ -355,10 +391,34 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   required
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-none focus:border-white transition-colors font-mono"
+                  placeholder={
+                    activePortal === 'user'
+                      ? 'yourname@gmail.com'
+                      : activePortal === 'organizer'
+                      ? 'organizer@nomadexplorers.org'
+                      : 'admin@friendsconnect.com'
+                  }
+                  className={`w-full pl-10 pr-4 py-3 bg-zinc-950 border rounded-xl text-white text-xs focus:outline-none transition-colors font-mono ${
+                    email && !authService.validateUserEmail(email, activePortal === 'user' ? 'user' : 'super_admin')
+                      ? 'border-red-500/60 focus:border-red-500'
+                      : 'border-zinc-800 focus:border-white'
+                  }`}
                 />
               </div>
+
+              {/* Quick @gmail.com auto-append chip */}
+              {activePortal === 'user' && email && !email.includes('@') && (
+                <div className="mt-1.5 flex items-center space-x-2">
+                  <span className="text-[10px] text-zinc-500">Quick complete:</span>
+                  <button
+                    type="button"
+                    onClick={() => setEmail(`${email.trim()}@gmail.com`)}
+                    className="px-2 py-0.5 rounded-lg bg-red-950/60 border border-red-800/60 hover:bg-red-900/60 text-red-300 text-[10px] font-mono font-bold transition-colors"
+                  >
+                    + @gmail.com
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Password Field */}
@@ -455,12 +515,33 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Rate Limit Cooldown Notice */}
+            {cooldownSeconds > 0 && (
+              <div className="p-3 bg-red-950/80 border border-red-500/60 rounded-xl text-red-200 text-xs flex items-center space-x-2.5 shadow-lg shadow-red-950/50 animate-pulse">
+                <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <div className="flex-1">
+                  <span className="font-bold">Rate Limiter Active:</span>
+                  <span className="ml-1">Too many attempts. Please wait <strong className="text-white font-mono">{cooldownSeconds}s</strong> before retrying to prevent system overload.</span>
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button with Rate Limiter protection */}
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl text-xs font-black transition-all bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/70 flex items-center justify-center space-x-2 mt-4 hover:scale-[1.01]"
+              disabled={cooldownSeconds > 0}
+              className={`w-full py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-2 mt-4 ${
+                cooldownSeconds > 0
+                  ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/70 hover:scale-[1.01]'
+              }`}
             >
-              {activePortal === 'user' ? (
+              {cooldownSeconds > 0 ? (
+                <>
+                  <ShieldAlert className="w-4 h-4 text-zinc-500" />
+                  <span>Rate Limit Active ({cooldownSeconds}s Cooldown)</span>
+                </>
+              ) : activePortal === 'user' ? (
                 userMode === 'signup' ? (
                   <>
                     <UserPlus className="w-4 h-4" />

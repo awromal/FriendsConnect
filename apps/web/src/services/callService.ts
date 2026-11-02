@@ -1,5 +1,6 @@
 import { CallSession, CallStatus, CallType, UserProfile } from '@friends/shared';
 import { supabase } from './supabaseClient';
+import { rateLimiter } from './rateLimiter';
 
 export interface E2EESecurityInfo {
   isEncrypted: boolean;
@@ -296,6 +297,9 @@ class CallService {
     receiver: UserProfile,
     type: CallType
   ): Promise<void> {
+    // Prevent call spamming with rate limiting
+    rateLimiter.recordAttempt('call_attempt');
+
     const callId = 'call-' + Date.now();
     const safetyFingerprint = generateSafetyNumber(caller.id, receiver.id, callId);
     const certHash = generateCertHash(caller.id + receiver.id);

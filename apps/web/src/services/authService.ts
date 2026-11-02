@@ -1,6 +1,7 @@
 import { AuthSession, AuthUser, OTPChannel, OTPRequestResponse, UserRole } from '@friends/shared';
 import { INITIAL_PROFILES } from './mockData';
 import { supabase } from './supabaseClient';
+import { rateLimiter } from './rateLimiter';
 
 const SESSION_KEY = 'friends_app_auth_session';
 const OTP_STORE_KEY = 'friends_app_pending_otp';
@@ -128,14 +129,37 @@ export const authService = {
     }
   },
 
-  // Validate email format
-  validateEmailFormat(email: string): boolean {
+  // Validate email format with strict Gmail verification for user accounts
+  validateUserEmail(email: string, role: UserRole = 'user'): boolean {
     if (!email) return false;
-    return EMAIL_REGEX.test(email.trim());
+    const clean = email.trim().toLowerCase();
+    const parts = clean.split('@');
+    if (parts.length !== 2) return false;
+    const [local, domain] = parts;
+
+    if (role === 'user') {
+      // Must be genuine Google Mail
+      if (domain !== 'gmail.com' && domain !== 'googlemail.com') {
+        return false;
+      }
+      // Must have valid local name: 3-30 alphanumeric chars and optional single dots in between
+      return /^[a-zA-Z0-9](\.?[a-zA-Z0-9]){2,29}$/.test(local);
+    }
+
+    // Official roles allow corporate domains (e.g. friendsconnect.com, nomadexplorers.org)
+    return EMAIL_REGEX.test(clean);
+  },
+
+  // Validate email format (defaults to user Gmail check)
+  validateEmailFormat(email: string): boolean {
+    return this.validateUserEmail(email, 'user');
   },
 
   // Register a new user account
   registerUser(fullName: string, email: string, password: string, role: UserRole = 'user'): AuthSession {
+    // 1. Rate limiter check to prevent spam / bot overload
+    rateLimiter.recordAttempt('auth_signup');
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = fullName.trim();
 
@@ -143,7 +167,10 @@ export const authService = {
       throw new Error('Please enter a valid full name (minimum 2 characters).');
     }
 
-    if (!this.validateEmailFormat(cleanEmail)) {
+    if (!this.validateUserEmail(cleanEmail, role)) {
+      if (role === 'user') {
+        throw new Error('Security Notice: Only genuine Google Mail accounts (@gmail.com) are permitted to create an account. Invalid domains (like .xcom or temporary emails) are blocked.');
+      }
       throw new Error('Please enter a valid email address (e.g., name@domain.com).');
     }
 
@@ -214,6 +241,9 @@ export const authService = {
         });
     }
 
+    // Reset rate limiter on successful registration
+    rateLimiter.reset('auth_signup');
+
     return this.createAndSaveSession(newAccount);
   },
 
@@ -224,46 +254,39 @@ export const authService = {
     expectedRole?: UserRole,
     adminPasscode?: string
   ): AuthSession {
+    const role = expectedRole || 'user';
     const cleanEmail = (email || '').trim().toLowerCase();
 
-    // 1. Strict email validation
+    // 1. Rate limiter check to prevent brute-force attacks and crashes
+    rateLimiter.recordAttempt('auth_login');
+
+    // 2. Strict email validation
     if (!cleanEmail) {
       throw new Error('Email address is required.');
     }
-    if (!this.validateEmailFormat(cleanEmail)) {
+    if (!this.validateUserEmail(cleanEmail, role)) {
+      if (role === 'user') {
+        throw new Error('Security Notice: Only genuine Google Mail accounts (@gmail.com) are permitted to sign in.');
+      }
       throw new Error('Invalid email format. Please enter a valid address (e.g. name@domain.com).');
     }
 
-    // 2. Strict password validation
+    // 3. Strict password validation
     if (!password) {
       throw new Error('Password is required.');
     }
 
-    // 3. Look up registered account
+    // 4. Look up registered account (only real registered accounts)
     const accounts = this.getRegisteredAccounts();
     let account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
 
     if (!account) {
-      // Auto-recover/support login on new device
-      const validUuid =
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : '00000000-0000-4000-8000-' + Date.now().toString().slice(-12).padStart(12, '0');
-      
-      const recoveredAccount: RegisteredAccount = {
-        id: validUuid,
-        email: cleanEmail,
-        password,
-        fullName: cleanEmail.split('@')[0],
-        role: expectedRole || 'user',
-        country: 'Global',
-        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
-      };
-      this.saveAccountLocally(recoveredAccount);
-      account = recoveredAccount;
+      throw new Error(
+        `No registered account found with email "${cleanEmail}". Please check your email or click "Create Account" to register.`
+      );
     }
 
-    // 4. Role Authorization check
+    // 5. Role Authorization check
     if (expectedRole && account.role !== expectedRole) {
       if (expectedRole === 'super_admin') {
         throw new Error('Access Denied: This account does not possess Super Admin privileges.');
@@ -274,12 +297,12 @@ export const authService = {
       }
     }
 
-    // 5. Verify Password
+    // 6. Verify Password
     if (account.password !== password) {
       throw new Error('Incorrect password. Please verify your credentials and try again.');
     }
 
-    // 6. Super Admin Dual-Factor Security Passcode Check
+    // 7. Super Admin Dual-Factor Security Passcode Check
     if (account.role === 'super_admin' || expectedRole === 'super_admin') {
       const code = (adminPasscode || '').trim();
       if (code !== 'ADMIN-SECURE-2026' && code !== 'admin' && code !== '123456') {
@@ -287,18 +310,24 @@ export const authService = {
       }
     }
 
+    // Reset rate limiter on successful authentication
+    rateLimiter.reset('auth_login');
+
     return this.createAndSaveSession(account);
   },
 
   // Request 6-digit OTP for Email
   requestOTP(email: string, _channel: OTPChannel = 'email'): OTPRequestResponse {
+    // 1. Rate limiter check for OTP requests
+    rateLimiter.recordAttempt('auth_otp');
+
     const cleanEmail = (email || '').trim().toLowerCase();
 
     if (!cleanEmail) {
       throw new Error('Email address is required to dispatch OTP.');
     }
-    if (!this.validateEmailFormat(cleanEmail)) {
-      throw new Error('Invalid email format. Please provide a valid email (e.g., name@domain.com).');
+    if (!this.validateUserEmail(cleanEmail, 'user')) {
+      throw new Error('Security Notice: Only genuine Google Mail accounts (@gmail.com) are permitted to receive OTP.');
     }
 
     const accounts = this.getRegisteredAccounts();
@@ -337,11 +366,14 @@ export const authService = {
     expectedRole?: UserRole,
     adminPasscode?: string
   ): AuthSession {
+    // 1. Rate limiter check for OTP verification
+    rateLimiter.recordAttempt('auth_login');
+
     const cleanEmail = (email || '').trim().toLowerCase();
     const cleanOtp = (otpCode || '').trim();
 
-    if (!cleanEmail || !this.validateEmailFormat(cleanEmail)) {
-      throw new Error('Invalid email address.');
+    if (!cleanEmail || !this.validateUserEmail(cleanEmail, 'user')) {
+      throw new Error('Security Notice: Only genuine Google Mail accounts (@gmail.com) are permitted.');
     }
 
     if (!cleanOtp) {
@@ -385,8 +417,10 @@ export const authService = {
       }
     }
 
-    // Clean up OTP
+    // Clean up OTP & Reset rate limits
     localStorage.removeItem(OTP_STORE_KEY);
+    rateLimiter.reset('auth_login');
+    rateLimiter.reset('auth_otp');
 
     return this.createAndSaveSession(account);
   },
