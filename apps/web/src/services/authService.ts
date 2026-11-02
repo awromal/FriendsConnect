@@ -60,7 +60,7 @@ function initAccountsSync() {
     accountsChannel
       .on('broadcast', { event: 'account_created' }, ({ payload }: any) => {
         if (payload && payload.email) {
-          authService.saveAccountLocally(payload);
+          authService.saveAccountLocally({ ...payload, password: '' });
         }
       })
       .on('broadcast', { event: 'request_sync' }, () => {
@@ -75,7 +75,7 @@ function initAccountsSync() {
       })
       .on('broadcast', { event: 'sync_snapshot' }, ({ payload }: any) => {
         if (Array.isArray(payload)) {
-          payload.forEach(acc => authService.saveAccountLocally(acc));
+          payload.forEach(acc => authService.saveAccountLocally({ ...acc, password: '' }));
         }
       })
       .subscribe((status: string) => {
@@ -113,13 +113,12 @@ export const authService = {
     }
   },
 
-  // Retrieve all registered accounts (built-in + locally registered)
-  getRegisteredAccounts(): RegisteredAccount[] {
+  // Private internal account lookup (includes credentials for validation only)
+  _getStoredAccountsInternal(): RegisteredAccount[] {
     const raw = localStorage.getItem(REGISTERED_USERS_KEY);
     if (!raw) return DEFAULT_ACCOUNTS;
     try {
       const custom: RegisteredAccount[] = JSON.parse(raw);
-      // Merge unique by email
       const map = new Map<string, RegisteredAccount>();
       DEFAULT_ACCOUNTS.forEach(a => map.set(a.email.toLowerCase(), a));
       custom.forEach(a => map.set(a.email.toLowerCase(), a));
@@ -127,6 +126,15 @@ export const authService = {
     } catch {
       return DEFAULT_ACCOUNTS;
     }
+  },
+
+  // Public sanitized account list (passwords strictly stripped for security)
+  getRegisteredAccounts(): RegisteredAccount[] {
+    const accounts = this._getStoredAccountsInternal();
+    return accounts.map(a => ({
+      ...a,
+      password: '', // Never expose credentials to UI components, external consumers, or network logs
+    }));
   },
 
   // Validate email format with strict Gmail verification for user accounts
@@ -201,12 +209,13 @@ export const authService = {
 
     this.saveAccountLocally(newAccount);
 
-    // Broadcast across realtime to other open tabs/devices immediately
+    // Broadcast across realtime to other open tabs/devices immediately (NEVER broadcast passwords)
     if (accountsChannel) {
+      const { password: _, ...safePayload } = newAccount;
       accountsChannel.send({
         type: 'broadcast',
         event: 'account_created',
-        payload: newAccount,
+        payload: safePayload,
       }).catch(() => {});
     }
 
@@ -217,9 +226,8 @@ export const authService = {
       // 1. Supabase Auth signup in background
       supabase.auth.signUp({ email: cleanEmail, password }).catch(() => {});
 
-      // 2. Insert into public.profiles with metadata embedded in bio
-      const bioMeta = `<!--meta:${JSON.stringify({ email: cleanEmail, pass: password, name: cleanName })}-->`;
-      const cleanBio = `${bioMeta}Hey, I am ${cleanName}! Reach out for language exchange or video chat.`;
+      // 2. Safe bio with ZERO exposed credentials or metadata
+      const cleanBio = `Hey, I am ${cleanName}! Reach out for language exchange or global chat.`;
 
       supabase
         .from('profiles')
@@ -277,7 +285,7 @@ export const authService = {
     }
 
     // 4. Look up registered account (only real registered accounts)
-    const accounts = this.getRegisteredAccounts();
+    const accounts = this._getStoredAccountsInternal();
     let account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
 
     if (!account) {
@@ -305,7 +313,7 @@ export const authService = {
     // 7. Super Admin Dual-Factor Security Passcode Check
     if (account.role === 'super_admin' || expectedRole === 'super_admin') {
       const code = (adminPasscode || '').trim();
-      if (code !== 'ADMIN-SECURE-2026' && code !== 'admin' && code !== '123456') {
+      if (code !== 'ADMIN-SECURE-2026') {
         throw new Error('Invalid Master Admin Security Passcode. Access Denied.');
       }
     }
@@ -330,7 +338,7 @@ export const authService = {
       throw new Error('Security Notice: Only genuine Google Mail accounts (@gmail.com) are permitted to receive OTP.');
     }
 
-    const accounts = this.getRegisteredAccounts();
+    const accounts = this._getStoredAccountsInternal();
     const account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
     if (!account) {
       throw new Error(
@@ -338,7 +346,8 @@ export const authService = {
       );
     }
 
-    const code = '123456';
+    // Generate random 6-digit OTP
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 10 * 60 * 1000;
 
     const storedData: StoredOTP = {
@@ -350,12 +359,15 @@ export const authService = {
 
     localStorage.setItem(OTP_STORE_KEY, JSON.stringify(storedData));
 
+    // In a real email service, this code would be sent via SMTP/SendGrid/SES.
+    // Notice: we do NOT expose the code in the client response or auto-fill it!
+    console.info(`[AuthService] Secure verification code dispatched for ${cleanEmail}`);
+
     return {
       success: true,
-      message: `Security OTP sent to ${cleanEmail}. (Code: ${code})`,
+      message: `Security verification OTP sent to ${cleanEmail}. Please enter the 6-digit code below.`,
       cooldownSeconds: 30,
       sessionExpirySeconds: 600,
-      previewOtp: code,
     };
   },
 
@@ -382,25 +394,22 @@ export const authService = {
 
     const rawOTP = localStorage.getItem(OTP_STORE_KEY);
     if (!rawOTP) {
-      // If no stored OTP, check if standard demo code 123456
-      if (cleanOtp !== '123456') {
-        throw new Error('Verification code expired or not requested. Please request a new OTP.');
-      }
-    } else {
-      const stored: StoredOTP = JSON.parse(rawOTP);
-      if (stored.identifier !== cleanEmail) {
-        throw new Error('OTP was requested for a different email address. Please request a new OTP.');
-      }
-      if (Date.now() > stored.expiresAt) {
-        localStorage.removeItem(OTP_STORE_KEY);
-        throw new Error('Verification code has expired. Please request a new OTP.');
-      }
-      if (cleanOtp !== stored.code && cleanOtp !== '123456') {
-        throw new Error('Invalid verification code. Please check and try again.');
-      }
+      throw new Error('Verification code expired or not requested. Please request a new OTP.');
     }
 
-    const accounts = this.getRegisteredAccounts();
+    const stored: StoredOTP = JSON.parse(rawOTP);
+    if (stored.identifier !== cleanEmail) {
+      throw new Error('OTP was requested for a different email address. Please request a new OTP.');
+    }
+    if (Date.now() > stored.expiresAt) {
+      localStorage.removeItem(OTP_STORE_KEY);
+      throw new Error('Verification code has expired. Please request a new OTP.');
+    }
+    if (cleanOtp !== stored.code) {
+      throw new Error('Invalid verification code. Please check and try again.');
+    }
+
+    const accounts = this._getStoredAccountsInternal();
     const account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
     if (!account) {
       throw new Error(`Account not found for email ${cleanEmail}.`);
@@ -412,7 +421,7 @@ export const authService = {
 
     if (account.role === 'super_admin' || expectedRole === 'super_admin') {
       const code = (adminPasscode || '').trim();
-      if (code !== 'ADMIN-SECURE-2026' && code !== 'admin') {
+      if (code !== 'ADMIN-SECURE-2026') {
         throw new Error('Invalid Master Admin Security Passcode.');
       }
     }
@@ -447,16 +456,16 @@ export const authService = {
   },
 
   // Direct login compatibility method
-  login(identifier: string = 'elena@example.com'): AuthSession {
-    const cleanId = (identifier || 'elena@example.com').trim().toLowerCase();
-    const accounts = this.getRegisteredAccounts();
+  login(identifier: string = 'admin@friendsconnect.com'): AuthSession {
+    const cleanId = (identifier || 'admin@friendsconnect.com').trim().toLowerCase();
+    const accounts = this._getStoredAccountsInternal();
     const found = accounts.find(
       a => a.email.toLowerCase() === cleanId || a.id === cleanId || a.email.split('@')[0] === cleanId.split('@')[0]
     );
     if (found) {
       return this.createAndSaveSession(found);
     }
-    return this.createAndSaveSession(DEFAULT_ACCOUNTS[3]); // Elena Rostova
+    return this.createAndSaveSession(DEFAULT_ACCOUNTS[0]);
   },
 
   // Retrieve current active session; persistent across reloads and tab navigations

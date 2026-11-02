@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Sparkles,
   ShieldCheck,
   ShieldAlert,
   Mail,
@@ -14,12 +13,9 @@ import {
   UserPlus,
   LogIn,
   Send,
-  HelpCircle,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import { AuthSession, UserRole } from '@friends/shared';
-import { authService, DEFAULT_ACCOUNTS } from '../../services/authService';
+import { authService } from '../../services/authService';
 import { rateLimiter } from '../../services/rateLimiter';
 
 interface LoginViewProps {
@@ -33,12 +29,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [userMode, setUserMode] = useState<'signin' | 'signup'>('signin');
   const [authMethod, setAuthMethod] = useState<'password' | 'otp'>('password');
 
-  // Form inputs
+  // Form inputs - strictly blank by default, never pre-populated
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [adminPasscode, setAdminPasscode] = useState('ADMIN-SECURE-2026');
+  const [adminPasscode, setAdminPasscode] = useState('');
 
   // Security Rate Limiter Cooldown (in seconds)
   const [cooldownSeconds, setCooldownSeconds] = useState<number>(() => {
@@ -62,24 +58,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [otpSentNotice, setOtpSentNotice] = useState<string | null>(null);
-  const [showCredentialsHelper, setShowCredentialsHelper] = useState(true);
 
-  // Switch portals with clean presets
+  // Switch portals with clean inputs - no hardcoded credentials exposed
   const handleSwitchPortal = (portal: 'user' | 'organizer' | 'admin') => {
     setActivePortal(portal);
     setError(null);
     setOtpSentNotice(null);
+    setEmail('');
+    setPassword('');
+    setAdminPasscode('');
     if (portal === 'user') {
-      setEmail('');
-      setPassword('');
       setUserMode('signin');
-    } else if (portal === 'organizer') {
-      setEmail('organizer@nomadexplorers.org');
-      setPassword('Organizer@2026');
-    } else {
-      setEmail('admin@friendsconnect.com');
-      setPassword('AdminPassword@2026');
-      setAdminPasscode('ADMIN-SECURE-2026');
     }
   };
 
@@ -90,9 +79,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     try {
       const res = authService.requestOTP(email);
       setOtpSentNotice(res.message);
-      if (res.previewOtp) {
-        setOtpCode(res.previewOtp);
-      }
     } catch (err: any) {
       const rem = rateLimiter.getRemainingCooldown('auth_otp');
       if (rem > 0) setCooldownSeconds(rem);
@@ -156,15 +142,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       }
       setError(err.message || 'Authentication failed. Please check your credentials.');
     }
-  };
-
-  // Auto-fill credential helper
-  const handleQuickFill = (targetEmail: string, targetPass: string, targetKey?: string) => {
-    setEmail(targetEmail);
-    setPassword(targetPass);
-    if (targetKey) setAdminPasscode(targetKey);
-    setError(null);
-    setOtpSentNotice(null);
   };
 
   return (
@@ -481,7 +458,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     maxLength={6}
                     value={otpCode}
                     onChange={e => setOtpCode(e.target.value)}
-                    placeholder="123456"
+                    placeholder="• • • • • •"
                     className="w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs tracking-widest font-mono focus:outline-none focus:border-white transition-colors text-center font-bold"
                   />
                 </div>
@@ -495,8 +472,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   <label className="text-xs font-semibold text-zinc-300">
                     Master Admin Security Passcode
                   </label>
-                  <span className="text-[10px] text-zinc-400 font-mono">
-                    ADMIN-SECURE-2026
+                  <span className="text-[10px] text-zinc-500">
+                    Dual-factor requirement
                   </span>
                 </div>
                 <div className="relative">
@@ -508,7 +485,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                     required
                     value={adminPasscode}
                     onChange={e => setAdminPasscode(e.target.value)}
-                    placeholder="ADMIN-SECURE-2026"
+                    placeholder="Enter security passcode..."
                     className="w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-mono focus:outline-none focus:border-white transition-colors"
                   />
                 </div>
@@ -566,121 +543,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
               )}
             </button>
           </form>
-
-          {/* Quick-Fill Credentials Helper */}
-          <div className="mt-6 pt-5 border-t border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setShowCredentialsHelper(!showCredentialsHelper)}
-              className="w-full flex items-center justify-between text-xs text-zinc-400 hover:text-white transition-colors"
-            >
-              <div className="flex items-center space-x-1.5">
-                <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
-                <span className="font-semibold">Registered Accounts & Passwords</span>
-              </div>
-              {showCredentialsHelper ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </button>
-
-            {showCredentialsHelper && (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
-                {/* User / Member */}
-                {authService
-                  .getRegisteredAccounts()
-                  .filter(
-                    a =>
-                      a.role === 'user' &&
-                      !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8'].includes(a.id)
-                  ).length > 0 ? (
-                  authService
-                    .getRegisteredAccounts()
-                    .filter(
-                      a =>
-                        a.role === 'user' &&
-                        !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8'].includes(a.id)
-                    )
-                    .slice(0, 1)
-                    .map(acc => (
-                      <div
-                        key={acc.id}
-                        onClick={() => {
-                          setActivePortal('user');
-                          setUserMode('signin');
-                          setAuthMethod('password');
-                          handleQuickFill(acc.email, acc.password);
-                        }}
-                        className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-red-500/50 cursor-pointer transition-all"
-                      >
-                        <span className="text-white font-semibold block truncate">1. Your Account ({acc.fullName})</span>
-                        <span className="text-zinc-400 font-mono text-[10px] block truncate">
-                          {acc.email}
-                        </span>
-                        <span className="text-emerald-400 text-[10px] block font-semibold mt-0.5">
-                          Click to Fill
-                        </span>
-                      </div>
-                    ))
-                ) : (
-                  <div
-                    onClick={() => {
-                      setActivePortal('user');
-                      setUserMode('signup');
-                    }}
-                    className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-red-500/50 cursor-pointer transition-all"
-                  >
-                    <span className="text-white font-semibold block">1. New Member</span>
-                    <span className="text-zinc-400 text-[10px] block">
-                      Click to switch to Sign Up
-                    </span>
-                    <span className="text-red-400 text-[10px] block font-semibold mt-0.5">
-                      Create Your Real Account
-                    </span>
-                  </div>
-                )}
-
-                {/* Organizer */}
-                <div
-                  onClick={() => {
-                    setActivePortal('organizer');
-                    handleQuickFill('organizer@nomadexplorers.org', 'Organizer@2026');
-                  }}
-                  className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-600 cursor-pointer transition-all"
-                >
-                  <span className="text-white font-semibold block">2. Event Team (Amara)</span>
-                  <span className="text-zinc-400 font-mono text-[10px] block truncate">
-                    organizer@nomadexplorers.org
-                  </span>
-                  <span className="text-zinc-500 text-[10px] block font-mono mt-0.5">
-                    Pass: Organizer@2026
-                  </span>
-                </div>
-
-                {/* Admin */}
-                <div
-                  onClick={() => {
-                    setActivePortal('admin');
-                    handleQuickFill(
-                      'admin@friendsconnect.com',
-                      'AdminPassword@2026',
-                      'ADMIN-SECURE-2026'
-                    );
-                  }}
-                  className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-600 cursor-pointer transition-all"
-                >
-                  <span className="text-white font-semibold block">3. Super Admin</span>
-                  <span className="text-zinc-400 font-mono text-[10px] block truncate">
-                    admin@friendsconnect.com
-                  </span>
-                  <span className="text-zinc-500 text-[10px] block font-mono mt-0.5">
-                    Pass: AdminPassword@2026
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Security Isolation Notice */}
