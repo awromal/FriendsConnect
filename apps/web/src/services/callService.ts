@@ -29,7 +29,13 @@ export interface CallControlState {
 type CallEventCallback = (state: CallControlState) => void;
 
 interface SignalingMessage {
-  type: 'CALL_OFFER' | 'CALL_ANSWER' | 'CALL_DECLINE' | 'CALL_HANGUP' | 'ICE_CANDIDATE';
+  type:
+    | 'CALL_OFFER'
+    | 'CALL_ANSWER'
+    | 'CALL_DECLINE'
+    | 'CALL_HANGUP'
+    | 'ICE_CANDIDATE'
+    | 'CALL_UPGRADE_VIDEO';
   callId: string;
   caller: UserProfile;
   receiver: UserProfile;
@@ -37,6 +43,37 @@ interface SignalingMessage {
   sdp?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;
 }
+
+// Multi-region STUN + TURN Relay Configuration for Universal NAT & Carrier IP Traversal
+export const RTC_CONFIGURATION: RTCConfiguration = {
+  iceServers: [
+    // Google Public STUN
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    // Cloudflare STUN
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    // Metered OpenRelay Free TURN Relay (Solves Symmetric NAT, CGNAT, & Mobile Carrier IP Traversal)
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
+  ],
+  iceCandidatePoolSize: 10,
+};
 
 // Generate WhatsApp-style 6-block 24-digit End-to-End Encryption Safety Fingerprint
 function generateSafetyNumber(id1: string, id2: string, callId: string): string {
@@ -102,6 +139,7 @@ class CallService {
   private supabaseRealtimeChannel: any = null;
   private peerConnection: RTCPeerConnection | null = null;
   private pendingOfferSdp: RTCSessionDescriptionInit | null = null;
+  private pendingRemoteIceCandidates: RTCIceCandidateInit[] = [];
   private syntheticAudioOsc: OscillatorNode | null = null;
   private syntheticAudioCtx: AudioContext | null = null;
   private currentUser: UserProfile | null = null;
@@ -207,9 +245,14 @@ class CallService {
     if (msg.type === 'CALL_ANSWER') {
       if (this.state.callSession && this.state.callSession.callId === msg.callId) {
         if (this.peerConnection && msg.sdp) {
-          this.peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp)).catch(e => {
-            console.warn('Caller setRemoteDescription warning:', e);
-          });
+          this.peerConnection
+            .setRemoteDescription(new RTCSessionDescription(msg.sdp))
+            .then(async () => {
+              await this.drainPendingIceCandidates();
+            })
+            .catch(e => {
+              console.warn('Caller setRemoteDescription warning:', e);
+            });
         }
         if (this.soloTimeout) {
           clearTimeout(this.soloTimeout);
@@ -220,15 +263,53 @@ class CallService {
       }
     }
 
-    // 3. ICE Candidate for P2P connection establishment
+    // 3. ICE Candidate for P2P connection establishment (Queue if remoteDescription not ready)
     if (msg.type === 'ICE_CANDIDATE') {
       if (
-        this.peerConnection &&
-        msg.candidate &&
-        ((this.state.callSession && this.state.callSession.callId === msg.callId) ||
-          (this.state.incomingCall && this.state.incomingCall.callId === msg.callId))
+        (this.state.callSession && this.state.callSession.callId === msg.callId) ||
+        (this.state.incomingCall && this.state.incomingCall.callId === msg.callId)
       ) {
-        this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
+        if (
+          this.peerConnection &&
+          this.peerConnection.remoteDescription &&
+          this.peerConnection.remoteDescription.type
+        ) {
+          this.peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(err => {
+            console.warn('[WebRTC] Direct addIceCandidate warning:', err);
+          });
+        } else if (msg.candidate) {
+          console.log('[WebRTC] Queuing ICE candidate for NAT/IP connection:', msg.candidate);
+          this.pendingRemoteIceCandidates.push(msg.candidate);
+        }
+      }
+    }
+
+    // 4. Remote peer requested video upgrade
+    if (msg.type === 'CALL_UPGRADE_VIDEO') {
+      if (
+        this.state.callSession &&
+        this.state.callSession.callId === msg.callId &&
+        this.peerConnection &&
+        msg.sdp
+      ) {
+        this.state.callSession.type = 'video';
+        this.peerConnection
+          .setRemoteDescription(new RTCSessionDescription(msg.sdp))
+          .then(async () => {
+            await this.drainPendingIceCandidates();
+            const answer = await this.peerConnection!.createAnswer();
+            await this.peerConnection!.setLocalDescription(answer);
+            this.broadcastSignaling({
+              type: 'CALL_ANSWER',
+              callId: msg.callId,
+              caller: msg.caller,
+              receiver: msg.receiver,
+              callType: 'video',
+              sdp: answer,
+            });
+            this.notify();
+          })
+          .catch(e => console.warn('[WebRTC] Video upgrade error:', e));
       }
     }
 
@@ -289,6 +370,108 @@ class CallService {
 
   private notify() {
     this.listeners.forEach(cb => cb({ ...this.state }));
+  }
+
+  // Drains queued remote ICE candidates once remoteDescription is set (fixes dropped IP candidates bug)
+  private async drainPendingIceCandidates(): Promise<void> {
+    if (!this.peerConnection || !this.peerConnection.remoteDescription) return;
+    if (this.pendingRemoteIceCandidates.length === 0) return;
+
+    console.log(`[WebRTC] Processing ${this.pendingRemoteIceCandidates.length} queued ICE candidate(s)...`);
+    while (this.pendingRemoteIceCandidates.length > 0) {
+      const candidate = this.pendingRemoteIceCandidates.shift();
+      if (candidate) {
+        try {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.warn('[WebRTC] Error adding buffered ICE candidate:', err);
+        }
+      }
+    }
+  }
+
+  // Stops simulated synthetic canvas and oscillator audio when real peer media arrives
+  private stopSyntheticMedia(): void {
+    if (this.remoteCanvasInterval) {
+      clearInterval(this.remoteCanvasInterval);
+      this.remoteCanvasInterval = null;
+    }
+    if (this.syntheticAudioOsc) {
+      try {
+        this.syntheticAudioOsc.stop();
+      } catch {}
+      this.syntheticAudioOsc = null;
+    }
+    if (this.syntheticAudioCtx) {
+      try {
+        this.syntheticAudioCtx.close();
+      } catch {}
+      this.syntheticAudioCtx = null;
+    }
+  }
+
+  // Reusable event listener setup for RTCPeerConnection
+  private setupPeerConnectionListeners(
+    pc: RTCPeerConnection,
+    callId: string,
+    caller: UserProfile,
+    receiver: UserProfile,
+    type: CallType
+  ) {
+    // 1. Direct Remote Track Reception
+    pc.ontrack = (event: RTCTrackEvent) => {
+      console.log('[WebRTC] ✓ Real remote media track received:', event.track.kind, event.track.id);
+      this.stopSyntheticMedia();
+
+      if (event.streams && event.streams[0]) {
+        this.state.remoteStream = event.streams[0];
+      } else {
+        if (!this.state.remoteStream) {
+          this.state.remoteStream = new MediaStream();
+        }
+        this.state.remoteStream.addTrack(event.track);
+      }
+      this.state.isPeerToPeerConnected = true;
+      this.notify();
+    };
+
+    // 2. Transmit Local ICE Candidate (Public & Relay IP)
+    pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+      if (event.candidate) {
+        this.broadcastSignaling({
+          type: 'ICE_CANDIDATE',
+          callId,
+          caller,
+          receiver,
+          callType: type,
+          candidate: event.candidate.toJSON(),
+        });
+      }
+    };
+
+    // 3. Monitor ICE connection state changes
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE Connection State:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        this.state.isPeerToPeerConnected = true;
+        this.stopSyntheticMedia();
+        this.notify();
+      } else if (pc.iceConnectionState === 'failed') {
+        console.warn('[WebRTC] ICE failed. Attempting ICE restart across TURN relay...');
+        if ((pc as any).restartIce) {
+          (pc as any).restartIce();
+        }
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log('[WebRTC] Connection State:', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        this.state.isPeerToPeerConnected = true;
+        this.stopSyntheticMedia();
+        this.notify();
+      }
+    };
   }
 
   // Start real call with actual webcam/mic hardware
@@ -361,17 +544,13 @@ class CallService {
 
     this.notify();
 
-    // 2. Setup WebRTC PeerConnection for authentic peer-to-peer audio/video transmission
+    // 2. Setup WebRTC PeerConnection with full STUN + TURN relay for NAT/IP traversal
     let offerSdp: RTCSessionDescriptionInit | undefined = undefined;
     if (typeof RTCPeerConnection !== 'undefined') {
       try {
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        });
+        const pc = new RTCPeerConnection(RTC_CONFIGURATION);
         this.peerConnection = pc;
+        this.setupPeerConnectionListeners(pc, callId, caller, receiver, type);
 
         if (this.state.localStream) {
           this.state.localStream.getTracks().forEach(track => {
@@ -379,30 +558,9 @@ class CallService {
           });
         }
 
-        pc.ontrack = event => {
-          if (event.streams && event.streams[0]) {
-            this.state.remoteStream = event.streams[0];
-            this.state.isPeerToPeerConnected = true;
-            this.notify();
-          }
-        };
-
-        pc.onicecandidate = event => {
-          if (event.candidate) {
-            this.broadcastSignaling({
-              type: 'ICE_CANDIDATE',
-              callId,
-              caller,
-              receiver,
-              callType: type,
-              candidate: event.candidate.toJSON(),
-            });
-          }
-        };
-
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
-          offerToReceiveVideo: type === 'video',
+          offerToReceiveVideo: true, // Always offer video capacity so users can toggle video at any point
         });
         await pc.setLocalDescription(offer);
         offerSdp = offer;
@@ -421,7 +579,7 @@ class CallService {
       sdp: offerSdp,
     });
 
-    // 4. Setup initial remote stream fallback with audio
+    // 4. Setup initial remote stream fallback until P2P connects
     this.state.remoteStream = this.createSyntheticStream(receiver.fullName, '#0284c7');
 
     // 5. Realistic phone ring timeout: Ring for 45 seconds waiting for receiver to answer
@@ -472,23 +630,25 @@ class CallService {
       );
     }
 
-    // Set fallback remote stream with audible audio track
+    // Set fallback remote stream until P2P connects
     this.state.remoteStream = this.createSyntheticStream(
       incoming.callerProfile?.fullName || 'Caller',
       '#4f46e5'
     );
 
-    // Setup WebRTC PeerConnection on Receiver side
+    // Setup WebRTC PeerConnection on Receiver side with full STUN + TURN relay
     let answerSdp: RTCSessionDescriptionInit | undefined = undefined;
     if (typeof RTCPeerConnection !== 'undefined') {
       try {
-        const pc = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        });
+        const pc = new RTCPeerConnection(RTC_CONFIGURATION);
         this.peerConnection = pc;
+        this.setupPeerConnectionListeners(
+          pc,
+          incoming.callId,
+          incoming.callerProfile!,
+          incoming.receiverProfile!,
+          incoming.type
+        );
 
         if (this.state.localStream) {
           this.state.localStream.getTracks().forEach(track => {
@@ -496,29 +656,9 @@ class CallService {
           });
         }
 
-        pc.ontrack = event => {
-          if (event.streams && event.streams[0]) {
-            this.state.remoteStream = event.streams[0];
-            this.state.isPeerToPeerConnected = true;
-            this.notify();
-          }
-        };
-
-        pc.onicecandidate = event => {
-          if (event.candidate) {
-            this.broadcastSignaling({
-              type: 'ICE_CANDIDATE',
-              callId: incoming.callId,
-              caller: incoming.callerProfile!,
-              receiver: incoming.receiverProfile!,
-              callType: incoming.type,
-              candidate: event.candidate.toJSON(),
-            });
-          }
-        };
-
         if (this.pendingOfferSdp) {
           await pc.setRemoteDescription(new RTCSessionDescription(this.pendingOfferSdp));
+          await this.drainPendingIceCandidates(); // Drains any candidates received during ringing
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           answerSdp = answer;
@@ -725,13 +865,71 @@ class CallService {
     this.notify();
   }
 
-  // Real Camera Toggle
-  public toggleVideo(): void {
+  // Real Camera Toggle (with camera hardware acquisition and re-negotiation if started as voice call)
+  public async toggleVideo(): Promise<void> {
+    const existingVideoTrack = this.state.localStream?.getVideoTracks()[0];
+
+    // If no video track exists (e.g. started as Voice Call), request real webcam hardware
+    if (!existingVideoTrack) {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          const videoStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
+              facingMode: 'user',
+            },
+          });
+          const newTrack = videoStream.getVideoTracks()[0];
+          if (newTrack) {
+            if (this.state.localStream) {
+              this.state.localStream.addTrack(newTrack);
+            } else {
+              this.state.localStream = videoStream;
+            }
+
+            if (this.peerConnection) {
+              this.peerConnection.addTrack(newTrack, this.state.localStream);
+              const offer = await this.peerConnection.createOffer();
+              await this.peerConnection.setLocalDescription(offer);
+
+              if (this.state.callSession) {
+                this.broadcastSignaling({
+                  type: 'CALL_UPGRADE_VIDEO',
+                  callId: this.state.callSession.callId,
+                  caller: this.state.callSession.callerProfile!,
+                  receiver: this.state.callSession.receiverProfile!,
+                  callType: 'video',
+                  sdp: offer,
+                });
+              }
+            }
+
+            if (this.state.callSession) {
+              this.state.callSession.type = 'video';
+            }
+            this.state.isVideoOff = false;
+            this.notify();
+            return;
+          }
+        }
+      } catch (err: any) {
+        console.warn('[WebRTC] Camera activation error during toggle:', err);
+        this.state.cameraError = 'Could not access camera device.';
+        this.notify();
+        return;
+      }
+    }
+
+    // Toggle existing video track
     this.state.isVideoOff = !this.state.isVideoOff;
     if (this.state.localStream) {
       this.state.localStream.getVideoTracks().forEach(track => {
         track.enabled = !this.state.isVideoOff;
       });
+    }
+    if (this.state.callSession) {
+      this.state.callSession.type = 'video';
     }
     this.notify();
   }
@@ -742,6 +940,9 @@ class CallService {
       clearTimeout(this.soloTimeout);
       this.soloTimeout = null;
     }
+
+    this.pendingRemoteIceCandidates = [];
+    this.stopSyntheticMedia();
 
     if (broadcast && this.state.callSession) {
       this.broadcastSignaling({
