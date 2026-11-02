@@ -1,5 +1,6 @@
 import { AuthSession, AuthUser, OTPChannel, OTPRequestResponse, UserRole } from '@friends/shared';
 import { INITIAL_PROFILES } from './mockData';
+import { supabase } from './supabaseClient';
 
 const SESSION_KEY = 'friends_app_auth_session';
 const OTP_STORE_KEY = 'friends_app_pending_otp';
@@ -150,6 +151,29 @@ export const authService = {
     const custom: RegisteredAccount[] = raw ? JSON.parse(raw) : [];
     custom.push(newAccount);
     localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(custom));
+
+    // Also persist profile to Supabase public.profiles for cross-device discovery
+    if (supabase) {
+      const username = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
+      supabase
+        .from('profiles')
+        .upsert({
+          id: newAccount.id,
+          username,
+          full_name: cleanName,
+          avatar_url: newAccount.avatarUrl,
+          bio: `Hey, I am ${cleanName}! Reach out for language exchange or video chat.`,
+          country: 'Global',
+          languages: ['English'],
+          interests: ['Language Exchange', 'World Travel'],
+          role,
+          account_status: 'active',
+          is_online: true,
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[AuthService] Supabase profile sync note:', error.message);
+        });
+    }
 
     return this.createAndSaveSession(newAccount);
   },

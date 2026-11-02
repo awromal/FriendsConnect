@@ -51,7 +51,15 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
   };
 
   const handleStartCall = (friend: UserProfile, type: 'voice' | 'video') => {
-    callService.startCall(currentUser, friend, type);
+    const callerWithEmail = {
+      ...currentUser,
+      email: (currentUser as any).email,
+    };
+    const targetWithEmail = {
+      ...friend,
+      email: (friend as any).email || `${friend.username}@example.com`,
+    };
+    callService.startCall(callerWithEmail as any, targetWithEmail as any, type);
   };
 
   const filteredFriends = friends.filter(f => {

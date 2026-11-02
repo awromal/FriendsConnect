@@ -98,7 +98,15 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
 
   const handleStartCall = (type: 'voice' | 'video') => {
     if (!activeFriend) return;
-    callService.startCall(currentUser, activeFriend, type);
+    const callerWithEmail = {
+      ...currentUser,
+      email: (currentUser as any).email,
+    };
+    const targetWithEmail = {
+      ...activeFriend,
+      email: (activeFriend as any).email || `${activeFriend.username}@example.com`,
+    };
+    callService.startCall(callerWithEmail as any, targetWithEmail as any, type);
   };
 
   return (

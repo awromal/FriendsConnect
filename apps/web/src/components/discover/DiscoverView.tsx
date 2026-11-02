@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Globe,
   Shuffle,
@@ -20,6 +20,8 @@ import { INITIAL_PROFILES } from '../../services/mockData';
 import { SAMPLE_ICEBREAKERS, MAJOR_REGIONS } from '@friends/shared';
 import { callService } from '../../services/callService';
 import { friendService } from '../../services/friendService';
+import { authService } from '../../services/authService';
+import { supabase } from '../../services/supabaseClient';
 
 interface DiscoverViewProps {
   currentUser: UserProfile;
@@ -52,10 +54,112 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [icebreaker, setIcebreaker] = useState<IcebreakerQuestion>(SAMPLE_ICEBREAKERS[0]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Available candidate pool (exclude current user)
-  const candidatePool = INITIAL_PROFILES.filter(
-    p => p.id !== currentUser.id && p.status === 'active'
-  );
+  // Available candidate pool (combine INITIAL_PROFILES, local registered, and Supabase live profiles)
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>(() => {
+    const map = new Map<string, UserProfile>();
+    INITIAL_PROFILES.forEach(p => map.set(p.id, p));
+
+    // Merge registered accounts from authService
+    try {
+      const registered = authService.getRegisteredAccounts();
+      registered.forEach(r => {
+        const username = r.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
+        map.set(r.id, {
+          id: r.id,
+          username,
+          fullName: r.fullName,
+          avatarUrl: r.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+          bio: 'Community member on FriendsConnect.',
+          country: r.country || 'Global',
+          languages: ['English'],
+          interests: ['Language Exchange', 'World Travel'],
+          isOnline: true,
+          role: r.role,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          email: r.email,
+        } as any);
+      });
+    } catch (e) {
+      // Ignore
+    }
+
+    return Array.from(map.values());
+  });
+
+  // Fetch cross-device profiles from Supabase in real time
+  useEffect(() => {
+    async function loadSupabaseProfiles() {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (data && data.length > 0) {
+          setAllProfiles(prev => {
+            const map = new Map<string, UserProfile>();
+            prev.forEach(p => map.set(p.id, p));
+            data.forEach((row: any) => {
+              map.set(row.id, {
+                id: row.id,
+                username: row.username,
+                fullName: row.full_name || row.username,
+                avatarUrl: row.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+                bio: row.bio || 'Community member on FriendsConnect.',
+                country: row.country || 'Global',
+                city: row.city || '',
+                languages: row.languages || ['English'],
+                interests: row.interests || ['Language Exchange'],
+                role: row.role || 'user',
+                status: row.account_status || 'active',
+                isOnline: row.is_online ?? true,
+                createdAt: row.created_at || new Date().toISOString(),
+                updatedAt: row.updated_at || new Date().toISOString(),
+                email: `${row.username}@example.com`,
+              } as any);
+            });
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load Supabase profiles:', err);
+      }
+    }
+
+    loadSupabaseProfiles();
+
+    // Listen for real-time new user signups across devices
+    let channel: any = null;
+    if (supabase) {
+      try {
+        channel = supabase
+          .channel('realtime_profiles_sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+            loadSupabaseProfiles();
+          })
+          .subscribe();
+      } catch (err) {
+        // Realtime fallback
+      }
+    }
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, []);
+
+  // Filter candidate pool (exclude the currently logged-in user)
+  const candidatePool = allProfiles.filter(p => {
+    const isMeById = p.id === currentUser.id;
+    const isMeByEmail =
+      (p as any).email &&
+      (currentUser as any).email &&
+      (p as any).email.toLowerCase() === (currentUser as any).email.toLowerCase();
+    const isMeByUsername = p.username && currentUser.username && p.username.toLowerCase() === currentUser.username.toLowerCase();
+
+    return !isMeById && !isMeByEmail && !isMeByUsername && p.status === 'active';
+  });
 
   const countries = ['All', ...Array.from(new Set(candidatePool.map(p => p.country)))];
 
@@ -91,7 +195,15 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
   };
 
   const handleStartCall = (target: UserProfile, type: 'voice' | 'video') => {
-    callService.startCall(currentUser, target, type);
+    const callerWithEmail = {
+      ...currentUser,
+      email: (currentUser as any).email,
+    };
+    const targetWithEmail = {
+      ...target,
+      email: (target as any).email || `${target.username}@example.com`,
+    };
+    callService.startCall(callerWithEmail as any, targetWithEmail as any, type);
   };
 
   const handleShuffleTopic = () => {

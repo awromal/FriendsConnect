@@ -46,8 +46,9 @@ export const App: React.FC = () => {
         (session.user.email && p.username.toLowerCase() === session.user.email.split('@')[0])
     );
     if (found) {
-      if (registered?.fullName) return { ...found, fullName: registered.fullName, role: session.user.role };
-      return found;
+      const email = session.user.email || registered?.email;
+      if (registered?.fullName) return { ...found, fullName: registered.fullName, role: session.user.role, email } as any;
+      return { ...found, email } as any;
     }
 
     return {
@@ -74,7 +75,8 @@ export const App: React.FC = () => {
       status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    };
+      email: session.user.email,
+    } as any;
   }, [session]);
 
   const updateFriendsCount = React.useCallback(() => {
@@ -170,8 +172,8 @@ export const App: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
               <button
                 onClick={() => {
-                  const partner = INITIAL_PROFILES[1]; // Kenji
-                  callService.startCall(currentUser, partner, 'video');
+                  const partner = { ...INITIAL_PROFILES[1], email: 'kenji@example.com' }; // Kenji
+                  callService.startCall(currentUser, partner as any, 'video');
                 }}
                 className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >
@@ -185,8 +187,8 @@ export const App: React.FC = () => {
 
               <button
                 onClick={() => {
-                  const partner = INITIAL_PROFILES[3]; // Rohan
-                  callService.startCall(currentUser, partner, 'video');
+                  const partner = { ...INITIAL_PROFILES[3], email: 'rohan@example.com' }; // Rohan
+                  callService.startCall(currentUser, partner as any, 'video');
                 }}
                 className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >
@@ -200,8 +202,8 @@ export const App: React.FC = () => {
 
               <button
                 onClick={() => {
-                  const partner = INITIAL_PROFILES[2]; // Amara
-                  callService.startCall(currentUser, partner, 'voice');
+                  const partner = { ...INITIAL_PROFILES[2], email: 'organizer@nomadexplorers.org' }; // Amara
+                  callService.startCall(currentUser, partner as any, 'voice');
                 }}
                 className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >

@@ -1,4 +1,5 @@
 import { CallSession, CallStatus, CallType, UserProfile } from '@friends/shared';
+import { supabase } from './supabaseClient';
 
 export interface E2EESecurityInfo {
   isEncrypted: boolean;
@@ -97,23 +98,57 @@ class CallService {
   private audioAnimFrame: number | null = null;
   private remoteCanvasInterval: any = null;
   private signalingChannel: BroadcastChannel | null = null;
+  private supabaseRealtimeChannel: any = null;
   private peerConnection: RTCPeerConnection | null = null;
   private pendingOfferSdp: RTCSessionDescriptionInit | null = null;
   private syntheticAudioOsc: OscillatorNode | null = null;
   private syntheticAudioCtx: AudioContext | null = null;
+  private currentUser: UserProfile | null = null;
   private currentUserId: string = '';
+  private currentUserEmail: string = '';
+  private currentUsername: string = '';
   private soloTimeout: any = null;
 
   constructor() {
     this.initSignalingChannel();
+    this.ensureSupabaseSignaling();
   }
 
   // Set the current authenticated user identity so the signaling listener knows when to ring this device
   public setCurrentUser(user: UserProfile) {
+    this.currentUser = user;
     this.currentUserId = user.id;
+    this.currentUserEmail = (user as any).email || '';
+    this.currentUsername = user.username || '';
+    this.ensureSupabaseSignaling();
   }
 
-  // Cross-tab & Multi-client WebRTC Signaling via standard BroadcastChannel
+  // Cross-network WebRTC Signaling via Supabase Realtime WebSocket broadcast
+  private ensureSupabaseSignaling() {
+    if (this.supabaseRealtimeChannel || !supabase) return;
+
+    try {
+      this.supabaseRealtimeChannel = supabase.channel('friends_global_webrtc_signals', {
+        config: {
+          broadcast: { self: false },
+        },
+      });
+
+      this.supabaseRealtimeChannel
+        .on('broadcast', { event: 'signal' }, (data: any) => {
+          if (data && data.payload) {
+            this.handleIncomingSignalingMessage(data.payload as SignalingMessage);
+          }
+        })
+        .subscribe((status: string) => {
+          console.log('[WebRTC Signaling] Supabase Realtime channel status:', status);
+        });
+    } catch (err) {
+      console.warn('[WebRTC Signaling] Failed to initialize Supabase channel:', err);
+    }
+  }
+
+  // Cross-tab WebRTC Signaling via local BroadcastChannel
   private initSignalingChannel() {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
 
@@ -130,9 +165,15 @@ class CallService {
   private handleIncomingSignalingMessage(msg: SignalingMessage) {
     if (!msg || !msg.type) return;
 
+    // Check if the signal is addressed to current user (by ID, email, or username)
+    const isForMe =
+      Boolean(this.currentUserId && (msg.receiver.id === this.currentUserId || (this.currentUser && msg.receiver.id === this.currentUser.id))) ||
+      Boolean(this.currentUserEmail && (msg.receiver as any).email && (msg.receiver as any).email.toLowerCase() === this.currentUserEmail.toLowerCase()) ||
+      Boolean(this.currentUsername && msg.receiver.username && msg.receiver.username.toLowerCase() === this.currentUsername.toLowerCase());
+
     // 1. Incoming Call Request (Ringing on receiver's screen)
     if (msg.type === 'CALL_OFFER') {
-      if (this.currentUserId && msg.receiver.id === this.currentUserId) {
+      if (isForMe) {
         // Do not ring if already in an active call
         if (this.state.callSession && this.state.callSession.status === 'connected') {
           this.broadcastSignaling({
@@ -214,11 +255,27 @@ class CallService {
   }
 
   private broadcastSignaling(msg: SignalingMessage) {
+    // 1. Broadcast locally across same-origin tabs
     if (this.signalingChannel) {
       try {
         this.signalingChannel.postMessage(msg);
       } catch (e) {
         console.warn('Signaling broadcast error:', e);
+      }
+    }
+
+    // 2. Broadcast globally across the internet via Supabase Realtime WebSockets
+    if (this.supabaseRealtimeChannel) {
+      try {
+        this.supabaseRealtimeChannel
+          .send({
+            type: 'broadcast',
+            event: 'signal',
+            payload: msg,
+          })
+          .catch((e: any) => console.warn('[WebRTC Signaling] Realtime send error:', e));
+      } catch (e) {
+        console.warn('[WebRTC Signaling] Realtime send exception:', e);
       }
     }
   }
@@ -363,12 +420,13 @@ class CallService {
     // 4. Setup initial remote stream fallback with audio
     this.state.remoteStream = this.createSyntheticStream(receiver.fullName, '#0284c7');
 
-    // 5. Solo testing fallback: If no second tab accepts within 3.5s, connect local preview so test never hangs!
+    // 5. Realistic phone ring timeout: Ring for 45 seconds waiting for receiver to answer
     this.soloTimeout = setTimeout(() => {
       if (this.state.callSession?.status === 'ringing') {
-        this.connectCall();
+        alert(`${receiver.fullName} is not answering. The call has timed out.`);
+        this.endCall();
       }
-    }, 3500);
+    }, 45000);
 
     this.notify();
   }
