@@ -15,6 +15,7 @@ import { authService } from './services/authService';
 import { friendService } from './services/friendService';
 import { INITIAL_PROFILES } from './services/mockData';
 import { callService } from './services/callService';
+import { presenceService } from './services/presenceService';
 import { Video, Phone, Users, Sparkles, LogOut, X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -32,24 +33,27 @@ export const App: React.FC = () => {
 
   // Active user profile based on current logged in session
   const currentUser: UserProfile = React.useMemo(() => {
-    if (!session) return INITIAL_PROFILES[0];
+    if (!session) {
+      return {
+        id: 'guest',
+        username: 'guest',
+        fullName: 'Guest',
+        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+        bio: 'Guest visitor',
+        country: 'Global',
+        languages: ['English'],
+        interests: ['Language Exchange'],
+        isOnline: false,
+        role: 'user',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as any;
+    }
 
     const registered = authService
       .getRegisteredAccounts()
       .find(a => a.id === session.user.id || a.email.toLowerCase() === session.user.email?.toLowerCase());
-
-    const found = INITIAL_PROFILES.find(
-      p =>
-        p.id === session.user.id ||
-        (session.user.role === 'super_admin' && p.role === 'super_admin') ||
-        (session.user.role === 'org_admin' && p.role === 'org_admin') ||
-        (session.user.email && p.username.toLowerCase() === session.user.email.split('@')[0])
-    );
-    if (found) {
-      const email = session.user.email || registered?.email;
-      if (registered?.fullName) return { ...found, fullName: registered.fullName, role: session.user.role, email } as any;
-      return { ...found, email } as any;
-    }
 
     return {
       id: session.user.id,
@@ -79,6 +83,24 @@ export const App: React.FC = () => {
     } as any;
   }, [session]);
 
+  // Live online peers across devices for direct calling
+  const [onlineMembers, setOnlineMembers] = useState<UserProfile[]>(() => {
+    return presenceService.getOnlineUsers().filter(
+      p => p.id !== currentUser?.id && !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(p.id)
+    );
+  });
+
+  useEffect(() => {
+    const unsub = presenceService.subscribe((users) => {
+      setOnlineMembers(
+        users.filter(
+          p => p.id !== currentUser?.id && !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(p.id)
+        )
+      );
+    });
+    return () => unsub();
+  }, [currentUser?.id]);
+
   const updateFriendsCount = React.useCallback(() => {
     if (currentUser) {
       const list = friendService.getConnectedFriends(currentUser.id);
@@ -90,10 +112,11 @@ export const App: React.FC = () => {
     updateFriendsCount();
   }, [updateFriendsCount, session]);
 
-  // Synchronize authenticated identity with WebRTC call service for peer-to-peer signaling
+  // Synchronize authenticated identity with WebRTC call service and Realtime Presence
   useEffect(() => {
     if (currentUser) {
       callService.setCurrentUser(currentUser);
+      presenceService.trackUser(currentUser);
     }
   }, [currentUser]);
 
@@ -169,52 +192,80 @@ export const App: React.FC = () => {
               Connect in crystal-clear peer-to-peer audio and video directly through your browser with end-to-end encryption.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
-              <button
-                onClick={() => {
-                  const partner = { ...INITIAL_PROFILES[1], email: 'kenji@example.com' }; // Kenji
-                  callService.startCall(currentUser, partner as any, 'video');
-                }}
-                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
-              >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
-                  <Video className="w-5 h-5" />
+            {onlineMembers.length === 0 ? (
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-8 sm:p-10 max-w-md mx-auto text-center shadow-xl shadow-red-950/20">
+                <div className="w-14 h-14 rounded-2xl bg-zinc-950 border border-red-500/30 text-red-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-950/30">
+                  <Phone className="w-7 h-7" />
                 </div>
-                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Kenji Sato</h3>
-                <span className="text-[11px] text-zinc-400 font-medium block">Tokyo, Japan 🇯🇵</span>
-                <p className="text-[10px] text-red-400 mt-2 font-semibold">WebRTC Video Call</p>
-              </button>
-
-              <button
-                onClick={() => {
-                  const partner = { ...INITIAL_PROFILES[3], email: 'rohan@example.com' }; // Rohan
-                  callService.startCall(currentUser, partner as any, 'video');
-                }}
-                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
-              >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
-                  <Video className="w-5 h-5" />
+                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-bold mb-3">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Your Device is Online & Ready</span>
                 </div>
-                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Rohan Sharma</h3>
-                <span className="text-[11px] text-zinc-400 font-medium block">Bengaluru, India 🇮🇳</span>
-                <p className="text-[10px] text-red-400 mt-2 font-semibold">WebRTC Video Call</p>
-              </button>
-
-              <button
-                onClick={() => {
-                  const partner = { ...INITIAL_PROFILES[2], email: 'organizer@nomadexplorers.org' }; // Amara
-                  callService.startCall(currentUser, partner as any, 'voice');
-                }}
-                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
-              >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
-                  <Phone className="w-5 h-5" />
-                </div>
-                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Amara Okafor</h3>
-                <span className="text-[11px] text-zinc-400 font-medium block">Lagos, Nigeria 🇳🇬</span>
-                <p className="text-[10px] text-red-400 mt-2 font-semibold">HD Voice Stream</p>
-              </button>
-            </div>
+                <h3 className="text-base font-bold text-white mb-1">Waiting for Another Device to Join</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+                  Open FriendsConnect on your mobile phone or in an incognito window. As soon as another member logs in or opens the app, they will appear here live to start calling!
+                </p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.origin);
+                    alert('App link copied to clipboard! Open on your phone to call.');
+                  }}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-950/60 flex items-center justify-center space-x-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Copy App Link</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                {onlineMembers.map(member => (
+                  <div
+                    key={member.id}
+                    className="p-5 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="relative">
+                          <img
+                            src={member.avatarUrl}
+                            alt={member.fullName}
+                            className="w-12 h-12 rounded-xl object-cover border border-zinc-800"
+                          />
+                          <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-zinc-900 rounded-full" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-bold text-white truncate group-hover:text-red-300 transition-colors">
+                            {member.fullName}
+                          </h3>
+                          <span className="text-[11px] text-zinc-400 font-medium block truncate">
+                            @{member.username} • {member.country}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">
+                            ● Online Now
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 pt-3 border-t border-zinc-800">
+                      <button
+                        onClick={() => callService.startCall(currentUser, member as any, 'video')}
+                        className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold flex items-center justify-center space-x-1.5 shadow-md shadow-red-950/60 transition-all"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Video Call</span>
+                      </button>
+                      <button
+                        onClick={() => callService.startCall(currentUser, member as any, 'voice')}
+                        className="py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors"
+                        title="Voice Call"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

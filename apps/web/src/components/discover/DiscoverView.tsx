@@ -14,13 +14,14 @@ import {
   Search,
   Filter,
   CheckCircle,
+  Users,
 } from 'lucide-react';
 import { UserProfile, IcebreakerQuestion } from '@friends/shared';
-import { INITIAL_PROFILES } from '../../services/mockData';
 import { SAMPLE_ICEBREAKERS, MAJOR_REGIONS } from '@friends/shared';
 import { callService } from '../../services/callService';
 import { friendService } from '../../services/friendService';
 import { authService } from '../../services/authService';
+import { presenceService } from '../../services/presenceService';
 import { supabase } from '../../services/supabaseClient';
 
 interface DiscoverViewProps {
@@ -54,15 +55,17 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
   const [icebreaker, setIcebreaker] = useState<IcebreakerQuestion>(SAMPLE_ICEBREAKERS[0]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Available candidate pool (combine INITIAL_PROFILES, local registered, and Supabase live profiles)
+  // Available candidate pool (Real registered users and Supabase live profiles only - NO mock users)
   const [allProfiles, setAllProfiles] = useState<UserProfile[]>(() => {
     const map = new Map<string, UserProfile>();
-    INITIAL_PROFILES.forEach(p => map.set(p.id, p));
 
-    // Merge registered accounts from authService
+    // Load registered accounts from authService (only real accounts)
     try {
       const registered = authService.getRegisteredAccounts();
       registered.forEach(r => {
+        if (['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(r.id)) {
+          return; // Skip dummy accounts
+        }
         const username = r.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
         map.set(r.id, {
           id: r.id,
@@ -73,7 +76,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
           country: r.country || 'Global',
           languages: ['English'],
           interests: ['Language Exchange', 'World Travel'],
-          isOnline: true,
+          isOnline: false,
           role: r.role,
           status: 'active',
           createdAt: new Date().toISOString(),
@@ -88,7 +91,25 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
     return Array.from(map.values());
   });
 
-  // Fetch cross-device profiles from Supabase in real time
+  // 1. Listen to Realtime Presence for live cross-device online users
+  useEffect(() => {
+    const unsubscribe = presenceService.subscribe((onlineUsers) => {
+      setAllProfiles(prev => {
+        const map = new Map<string, UserProfile>();
+        prev.forEach(p => map.set(p.id, { ...p, isOnline: false }));
+        onlineUsers.forEach(u => {
+          if (!['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(u.id)) {
+            map.set(u.id, { ...u, isOnline: true });
+          }
+        });
+        return Array.from(map.values());
+      });
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Fetch cross-device profiles from Supabase in real time
   useEffect(() => {
     async function loadSupabaseProfiles() {
       if (!supabase) return;
@@ -99,22 +120,27 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
             const map = new Map<string, UserProfile>();
             prev.forEach(p => map.set(p.id, p));
             data.forEach((row: any) => {
+              if (['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(row.id)) {
+                return;
+              }
+              const cleanBio = (row.bio || '').replace(/<!--meta:.*?-->/g, '').trim() || 'Community member on FriendsConnect.';
+              const existing = map.get(row.id);
               map.set(row.id, {
                 id: row.id,
                 username: row.username,
                 fullName: row.full_name || row.username,
                 avatarUrl: row.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
-                bio: row.bio || 'Community member on FriendsConnect.',
+                bio: cleanBio,
                 country: row.country || 'Global',
                 city: row.city || '',
                 languages: row.languages || ['English'],
                 interests: row.interests || ['Language Exchange'],
                 role: row.role || 'user',
                 status: row.account_status || 'active',
-                isOnline: row.is_online ?? true,
+                isOnline: existing ? existing.isOnline : (row.is_online ?? false),
                 createdAt: row.created_at || new Date().toISOString(),
                 updatedAt: row.updated_at || new Date().toISOString(),
-                email: `${row.username}@example.com`,
+                email: `${row.username}@friendsconnect.com`,
               } as any);
             });
             return Array.from(map.values());
@@ -149,16 +175,20 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
     };
   }, []);
 
-  // Filter candidate pool (exclude the currently logged-in user)
+  // Filter candidate pool (exclude the currently logged-in user and any dummy accounts)
   const candidatePool = allProfiles.filter(p => {
     const isMeById = p.id === currentUser.id;
     const isMeByEmail =
       (p as any).email &&
       (currentUser as any).email &&
       (p as any).email.toLowerCase() === (currentUser as any).email.toLowerCase();
-    const isMeByUsername = p.username && currentUser.username && p.username.toLowerCase() === currentUser.username.toLowerCase();
+    const isMeByUsername =
+      p.username &&
+      currentUser.username &&
+      p.username.toLowerCase() === currentUser.username.toLowerCase();
+    const isDummy = ['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(p.id);
 
-    return !isMeById && !isMeByEmail && !isMeByUsername && p.status === 'active';
+    return !isMeById && !isMeByEmail && !isMeByUsername && !isDummy && p.status === 'active';
   });
 
   const countries = ['All', ...Array.from(new Set(candidatePool.map(p => p.country)))];
@@ -298,23 +328,58 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({
 
       {/* User Profiles Grid */}
       {filteredMembers.length === 0 ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-12 text-center max-w-md mx-auto">
-          <Globe className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-white mb-1">No Members Found</h3>
-          <p className="text-xs text-zinc-400 mb-4">
-            Try adjusting your search query or selecting "All Countries".
-          </p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedCountry('All');
-              setFilterOnlineOnly(false);
-            }}
-            className="px-4 py-2 bg-white text-black hover:bg-zinc-200 rounded-xl text-xs font-bold"
-          >
-            Clear All Filters
-          </button>
-        </div>
+        candidatePool.length === 0 ? (
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-8 sm:p-12 text-center max-w-lg mx-auto shadow-2xl shadow-red-950/20">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-red-500/30 flex items-center justify-center text-red-500 mx-auto mb-4 shadow-lg shadow-red-950/40">
+              <Users className="w-8 h-8" />
+            </div>
+            <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-xs font-bold mb-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>You are Live & Online as {currentUser.fullName}</span>
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">No Other Members Online Yet</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+              All mock/dummy accounts have been removed. FriendsConnect only displays real users who register!
+              To test live HD video & voice calling right now, open this link on your phone or in another browser tab and create a second user.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.origin);
+                  showToast('App link copied to clipboard! Open on your phone to call.');
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-red-950/50 flex items-center justify-center space-x-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Copy App Link</span>
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 transition-colors"
+              >
+                Refresh Members
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-12 text-center max-w-md mx-auto">
+            <Globe className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-white mb-1">No Members Found Matching Filters</h3>
+            <p className="text-xs text-zinc-400 mb-4">
+              Try adjusting your search query or selecting "All Countries".
+            </p>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCountry('All');
+                setFilterOnlineOnly(false);
+              }}
+              className="px-4 py-2 bg-white text-black hover:bg-zinc-200 rounded-xl text-xs font-bold"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredMembers.map(member => {

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Send, Video, Phone, UserCheck, Search, ShieldCheck, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Send, Video, Phone, UserCheck, Search, ShieldCheck, Lock, MessageSquare } from 'lucide-react';
 import { UserProfile, DirectMessage } from '@friends/shared';
-import { INITIAL_PROFILES } from '../../services/mockData';
+import { presenceService } from '../../services/presenceService';
+import { authService } from '../../services/authService';
 import { callService, E2EESecurityInfo } from '../../services/callService';
 import { E2EESecurityModal } from '../call/E2EESecurityModal';
 
@@ -30,37 +31,35 @@ function generateChatSafetyCode(id1: string, id2: string): string {
 }
 
 export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
-  const friends = INITIAL_PROFILES.filter(p => p.id !== currentUser.id && p.status === 'active');
-  const [activeFriend, setActiveFriend] = useState<UserProfile>(friends[0] || INITIAL_PROFILES[0]);
+  const [friends, setFriends] = useState<UserProfile[]>(() => {
+    return presenceService.getOnlineUsers().filter(
+      p => p.id !== currentUser.id && !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(p.id)
+    );
+  });
+  const [activeFriend, setActiveFriend] = useState<UserProfile | null>(friends[0] || null);
   const [showE2EEModal, setShowE2EEModal] = useState<boolean>(false);
-  const [messages, setMessages] = useState<DirectMessage[]>([
-    {
-      id: 'm-1',
-      conversationId: 'c-1',
-      senderId: friends[0]?.id || 'usr-1',
-      receiverId: currentUser.id,
-      content: 'Hey there! Nice to meet you from across the world. Which languages are you learning?',
-      isRead: true,
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: 'm-2',
-      conversationId: 'c-1',
-      senderId: currentUser.id,
-      receiverId: friends[0]?.id || 'usr-1',
-      content: 'Hello! I am practicing conversational Spanish and Japanese. Are you free for a quick video call?',
-      isRead: true,
-      createdAt: new Date(Date.now() - 1800000).toISOString(),
-    },
-  ]);
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [inputVal, setInputVal] = useState<string>('');
+
+  useEffect(() => {
+    const unsub = presenceService.subscribe((online) => {
+      const real = online.filter(
+        p => p.id !== currentUser.id && !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8', 'usr-admin'].includes(p.id)
+      );
+      setFriends(real);
+      if (!activeFriend && real.length > 0) {
+        setActiveFriend(real[0]);
+      }
+    });
+    return () => unsub();
+  }, [currentUser.id, activeFriend]);
 
   const chatSecurityInfo: E2EESecurityInfo = {
     isEncrypted: true,
     protocol: 'Signal Protocol / Double Ratchet + WebCrypto AES-GCM',
     cipherSuite: 'AES-256-GCM (Zero-Knowledge)',
     keyExchange: 'Curve25519 / ECDH Ephemeral',
-    safetyFingerprint: generateChatSafetyCode(currentUser.id, activeFriend.id),
+    safetyFingerprint: activeFriend ? generateChatSafetyCode(currentUser.id, activeFriend.id) : '0000 0000',
     certificateHash: 'E4:7B:A2:91:38:F1:C4:02:83:94:11:09:DE:33:F9:8A',
     verifiedTimestamp: new Date().toISOString(),
   };
@@ -108,6 +107,22 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
     };
     callService.startCall(callerWithEmail as any, targetWithEmail as any, type);
   };
+
+  if (friends.length === 0 || !activeFriend) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center">
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-10 text-center shadow-xl shadow-red-950/20">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-red-500/30 flex items-center justify-center text-red-500 mx-auto mb-4">
+            <MessageSquare className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-black text-white mb-2">No Active Conversations</h3>
+          <p className="text-xs text-zinc-400 mb-6 leading-relaxed">
+            All mock contacts have been removed. When another user joins online or connects in the Discover tab, you can chat with them and start encrypted video calls right here!
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">

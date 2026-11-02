@@ -33,8 +33,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const [authMethod, setAuthMethod] = useState<'password' | 'otp'>('password');
 
   // Form inputs
-  const [email, setEmail] = useState('elena@example.com');
-  const [password, setPassword] = useState('User@2026');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [adminPasscode, setAdminPasscode] = useState('ADMIN-SECURE-2026');
@@ -51,8 +51,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setError(null);
     setOtpSentNotice(null);
     if (portal === 'user') {
-      setEmail('elena@example.com');
-      setPassword('User@2026');
+      setEmail('');
+      setPassword('');
       setUserMode('signin');
     } else if (portal === 'organizer') {
       setEmail('organizer@nomadexplorers.org');
@@ -506,24 +506,59 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
             {showCredentialsHelper && (
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
-                {/* User */}
-                <div
-                  onClick={() => {
-                    setActivePortal('user');
-                    setUserMode('signin');
-                    setAuthMethod('password');
-                    handleQuickFill('elena@example.com', 'User@2026');
-                  }}
-                  className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-600 cursor-pointer transition-all"
-                >
-                  <span className="text-white font-semibold block">1. Member (Elena)</span>
-                  <span className="text-zinc-400 font-mono text-[10px] block truncate">
-                    elena@example.com
-                  </span>
-                  <span className="text-zinc-500 text-[10px] block font-mono mt-0.5">
-                    Pass: User@2026
-                  </span>
-                </div>
+                {/* User / Member */}
+                {authService
+                  .getRegisteredAccounts()
+                  .filter(
+                    a =>
+                      a.role === 'user' &&
+                      !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8'].includes(a.id)
+                  ).length > 0 ? (
+                  authService
+                    .getRegisteredAccounts()
+                    .filter(
+                      a =>
+                        a.role === 'user' &&
+                        !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8'].includes(a.id)
+                    )
+                    .slice(0, 1)
+                    .map(acc => (
+                      <div
+                        key={acc.id}
+                        onClick={() => {
+                          setActivePortal('user');
+                          setUserMode('signin');
+                          setAuthMethod('password');
+                          handleQuickFill(acc.email, acc.password);
+                        }}
+                        className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-red-500/50 cursor-pointer transition-all"
+                      >
+                        <span className="text-white font-semibold block truncate">1. Your Account ({acc.fullName})</span>
+                        <span className="text-zinc-400 font-mono text-[10px] block truncate">
+                          {acc.email}
+                        </span>
+                        <span className="text-emerald-400 text-[10px] block font-semibold mt-0.5">
+                          Click to Fill
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <div
+                    onClick={() => {
+                      setActivePortal('user');
+                      setUserMode('signup');
+                    }}
+                    className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-red-500/50 cursor-pointer transition-all"
+                  >
+                    <span className="text-white font-semibold block">1. New Member</span>
+                    <span className="text-zinc-400 text-[10px] block">
+                      Click to switch to Sign Up
+                    </span>
+                    <span className="text-red-400 text-[10px] block font-semibold mt-0.5">
+                      Create Your Real Account
+                    </span>
+                  </div>
+                )}
 
                 {/* Organizer */}
                 <div

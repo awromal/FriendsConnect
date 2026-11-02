@@ -1,20 +1,23 @@
 import { UserProfile } from '@friends/shared';
-import { INITIAL_PROFILES } from './mockData';
+import { presenceService } from './presenceService';
 
 const FRIENDS_STORAGE_KEY = 'friends_app_connected_ids';
 
-// Default initial connected friends for realistic showcase
-const DEFAULT_CONNECTED_IDS = ['usr-2', 'usr-4'];
+// No dummy friends by default - only real connections made by the user
+const DEFAULT_CONNECTED_IDS: string[] = [];
 
 export const friendService = {
   getConnectedFriendIds(): string[] {
     const raw = localStorage.getItem(FRIENDS_STORAGE_KEY);
     if (!raw) {
-      localStorage.setItem(FRIENDS_STORAGE_KEY, JSON.stringify(DEFAULT_CONNECTED_IDS));
       return DEFAULT_CONNECTED_IDS;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Filter out any legacy dummy ids
+      return Array.isArray(parsed)
+        ? parsed.filter(id => !['usr-1', 'usr-2', 'usr-3', 'usr-4', 'usr-5', 'usr-6', 'usr-7', 'usr-8'].includes(id))
+        : DEFAULT_CONNECTED_IDS;
     } catch {
       return DEFAULT_CONNECTED_IDS;
     }
@@ -39,14 +42,11 @@ export const friendService = {
     localStorage.setItem(FRIENDS_STORAGE_KEY, JSON.stringify(updated));
   },
 
-  getConnectedFriends(currentUserId: string): UserProfile[] {
+  getConnectedFriends(currentUserId: string, availablePool: UserProfile[] = []): UserProfile[] {
     const friendIds = this.getConnectedFriendIds();
-    return INITIAL_PROFILES.filter(
-      p => friendIds.includes(p.id) && p.id !== currentUserId
+    const pool = availablePool.length > 0 ? availablePool : presenceService.getOnlineUsers();
+    return pool.filter(
+      p => friendIds.includes(p.id) && p.id !== currentUserId && p.status === 'active'
     );
-  },
-
-  getAllDiscoverable(currentUserId: string): UserProfile[] {
-    return INITIAL_PROFILES.filter(p => p.id !== currentUserId && p.status === 'active');
   },
 };

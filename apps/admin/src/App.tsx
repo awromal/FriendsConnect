@@ -4,7 +4,7 @@ import { INITIAL_PROFILES } from '../../web/src/services/mockData';
 import { ShieldAlert, Terminal } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const adminUser = INITIAL_PROFILES.find(p => p.role === 'super_admin') || INITIAL_PROFILES[3];
+  const adminUser = INITIAL_PROFILES.find(p => p.role === 'super_admin') || INITIAL_PROFILES[0];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">

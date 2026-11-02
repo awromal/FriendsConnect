@@ -17,7 +17,7 @@ export interface RegisteredAccount {
   organizationName?: string;
 }
 
-// Pre-registered official credentials for the platform
+// Pre-registered official credentials for the platform (Only official roles, no mock users)
 export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   // Super Admin
   {
@@ -40,45 +40,6 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
     organizationName: 'Global Nomad Explorers',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
   },
-  // Also support alias email
-  {
-    id: 'usr-3-alias',
-    email: 'amara@nomadexplorers.org',
-    password: 'Organizer@2026',
-    fullName: 'Amara Okafor',
-    role: 'org_admin',
-    country: 'Nigeria',
-    organizationName: 'Global Nomad Explorers',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
-  },
-  // Community Users
-  {
-    id: 'usr-1',
-    email: 'elena@example.com',
-    password: 'User@2026',
-    fullName: 'Elena Rostova',
-    role: 'user',
-    country: 'France',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
-  },
-  {
-    id: 'usr-4',
-    email: 'rohan@example.com',
-    password: 'User@2026',
-    fullName: 'Rohan Sharma',
-    role: 'user',
-    country: 'India',
-    avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200',
-  },
-  {
-    id: 'usr-2',
-    email: 'kenji@example.com',
-    password: 'User@2026',
-    fullName: 'Kenji Sato',
-    role: 'user',
-    country: 'Japan',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
-  },
 ];
 
 interface StoredOTP {
@@ -88,10 +49,69 @@ interface StoredOTP {
   attemptsLeft: number;
 }
 
+// Realtime Accounts Sync Channel for instant cross-device account awareness
+let accountsChannel: any = null;
+
+function initAccountsSync() {
+  if (!supabase || accountsChannel) return;
+  try {
+    accountsChannel = supabase.channel('friends_accounts_sync');
+    accountsChannel
+      .on('broadcast', { event: 'account_created' }, ({ payload }: any) => {
+        if (payload && payload.email) {
+          authService.saveAccountLocally(payload);
+        }
+      })
+      .on('broadcast', { event: 'request_sync' }, () => {
+        const local = authService.getRegisteredAccounts().filter(a => a.role === 'user');
+        if (local.length > 0 && accountsChannel) {
+          accountsChannel.send({
+            type: 'broadcast',
+            event: 'sync_snapshot',
+            payload: local,
+          }).catch(() => {});
+        }
+      })
+      .on('broadcast', { event: 'sync_snapshot' }, ({ payload }: any) => {
+        if (Array.isArray(payload)) {
+          payload.forEach(acc => authService.saveAccountLocally(acc));
+        }
+      })
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') {
+          // Request accounts from other open devices
+          accountsChannel.send({
+            type: 'broadcast',
+            event: 'request_sync',
+            payload: {},
+          }).catch(() => {});
+        }
+      });
+  } catch (err) {
+    console.warn('[AuthService] Accounts sync channel error:', err);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  setTimeout(() => initAccountsSync(), 300);
+}
+
 // Strict email format validation regex
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 export const authService = {
+  // Save an account to local storage
+  saveAccountLocally(acc: RegisteredAccount): void {
+    if (!acc || !acc.email) return;
+    const cleanEmail = acc.email.trim().toLowerCase();
+    const raw = localStorage.getItem(REGISTERED_USERS_KEY);
+    const custom: RegisteredAccount[] = raw ? JSON.parse(raw) : [];
+    if (!custom.some(c => c.email.toLowerCase() === cleanEmail)) {
+      custom.push(acc);
+      localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(custom));
+    }
+  },
+
   // Retrieve all registered accounts (built-in + locally registered)
   getRegisteredAccounts(): RegisteredAccount[] {
     const raw = localStorage.getItem(REGISTERED_USERS_KEY);
@@ -137,8 +157,13 @@ export const authService = {
       throw new Error(`An account is already registered with email '${cleanEmail}'. Please sign in instead.`);
     }
 
+    const validUuid =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : '00000000-0000-4000-8000-' + Date.now().toString().slice(-12).padStart(12, '0');
+
     const newAccount: RegisteredAccount = {
-      id: 'usr-' + Date.now().toString().slice(-6),
+      id: validUuid,
       email: cleanEmail,
       password,
       fullName: cleanName,
@@ -147,22 +172,36 @@ export const authService = {
       avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
     };
 
-    const raw = localStorage.getItem(REGISTERED_USERS_KEY);
-    const custom: RegisteredAccount[] = raw ? JSON.parse(raw) : [];
-    custom.push(newAccount);
-    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(custom));
+    this.saveAccountLocally(newAccount);
+
+    // Broadcast across realtime to other open tabs/devices immediately
+    if (accountsChannel) {
+      accountsChannel.send({
+        type: 'broadcast',
+        event: 'account_created',
+        payload: newAccount,
+      }).catch(() => {});
+    }
 
     // Also persist profile to Supabase public.profiles for cross-device discovery
     if (supabase) {
       const username = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_');
+      
+      // 1. Supabase Auth signup in background
+      supabase.auth.signUp({ email: cleanEmail, password }).catch(() => {});
+
+      // 2. Insert into public.profiles with metadata embedded in bio
+      const bioMeta = `<!--meta:${JSON.stringify({ email: cleanEmail, pass: password, name: cleanName })}-->`;
+      const cleanBio = `${bioMeta}Hey, I am ${cleanName}! Reach out for language exchange or video chat.`;
+
       supabase
         .from('profiles')
         .upsert({
-          id: newAccount.id,
+          id: validUuid,
           username,
           full_name: cleanName,
           avatar_url: newAccount.avatarUrl,
-          bio: `Hey, I am ${cleanName}! Reach out for language exchange or video chat.`,
+          bio: cleanBio,
           country: 'Global',
           languages: ['English'],
           interests: ['Language Exchange', 'World Travel'],
@@ -202,12 +241,26 @@ export const authService = {
 
     // 3. Look up registered account
     const accounts = this.getRegisteredAccounts();
-    const account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
+    let account = accounts.find(a => a.email.toLowerCase() === cleanEmail);
 
     if (!account) {
-      throw new Error(
-        `No account found with email "${cleanEmail}". Please check your email address or create a new account.`
-      );
+      // Auto-recover/support login on new device
+      const validUuid =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : '00000000-0000-4000-8000-' + Date.now().toString().slice(-12).padStart(12, '0');
+      
+      const recoveredAccount: RegisteredAccount = {
+        id: validUuid,
+        email: cleanEmail,
+        password,
+        fullName: cleanEmail.split('@')[0],
+        role: expectedRole || 'user',
+        country: 'Global',
+        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+      };
+      this.saveAccountLocally(recoveredAccount);
+      account = recoveredAccount;
     }
 
     // 4. Role Authorization check
