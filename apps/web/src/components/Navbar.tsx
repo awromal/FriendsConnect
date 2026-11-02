@@ -36,23 +36,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isOrgAdmin = session?.user?.role === 'org_admin' || isSuperAdmin;
 
   return (
-    <header className="sticky top-0 z-40 bg-black/90 backdrop-blur-md border-b border-zinc-800/80">
+    <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-zinc-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo with Stylish Red Accent */}
           <div
-            className="flex items-center space-x-3 cursor-pointer"
+            className="flex items-center space-x-3 cursor-pointer group"
             onClick={() => setCurrentTab('discover')}
           >
-            <div className="w-9 h-9 rounded-xl bg-white text-black flex items-center justify-center font-black text-sm tracking-tighter">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-700 text-white flex items-center justify-center font-black text-sm tracking-tighter shadow-md shadow-red-950/60 border border-red-500/30 group-hover:scale-105 transition-transform">
               FC
             </div>
             <div>
-              <span className="text-lg font-bold text-white tracking-tight">
-                Friends<span className="text-zinc-400">Connect</span>
+              <span className="text-lg font-extrabold text-white tracking-tight">
+                Friends<span className="text-red-500 font-black">Connect</span>
               </span>
-              <span className="hidden sm:inline-block ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-400 border border-zinc-800">
-                Community
+              <span className="hidden sm:inline-block ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-950/50 text-red-400 border border-red-800/40">
+                LIVE
               </span>
             </div>
           </div>
@@ -63,7 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentTab('discover')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 currentTab === 'discover'
-                  ? 'bg-white text-black shadow-sm'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
@@ -75,7 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentTab('friends')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 currentTab === 'friends'
-                  ? 'bg-white text-black shadow-sm'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
@@ -84,7 +84,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               {friendsCount > 0 && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    currentTab === 'friends' ? 'bg-zinc-900 text-white' : 'bg-zinc-800 text-zinc-300'
+                    currentTab === 'friends'
+                      ? 'bg-black/60 text-white border border-white/20'
+                      : 'bg-red-950/80 text-red-400 border border-red-800/40'
                   }`}
                 >
                   {friendsCount}
@@ -96,11 +98,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentTab('calls')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 currentTab === 'calls'
-                  ? 'bg-white text-black shadow-sm'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
-              <Video className="w-4 h-4" />
+              <div className="relative">
+                <Video className="w-4 h-4" />
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 absolute -top-0.5 -right-0.5 animate-pulse" />
+              </div>
               <span>Live Calling</span>
             </button>
 
@@ -108,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentTab('events')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 currentTab === 'events'
-                  ? 'bg-white text-black shadow-sm'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
@@ -120,7 +125,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentTab('messages')}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 currentTab === 'messages'
-                  ? 'bg-white text-black shadow-sm'
+                  ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
@@ -133,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setCurrentTab('organizer')}
                 className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                   currentTab === 'organizer'
-                    ? 'bg-white text-black shadow-sm'
+                    ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                 }`}
               >
@@ -150,19 +155,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onOpenAdmin}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                   currentTab === 'admin'
-                    ? 'bg-white text-black border-white shadow-sm'
-                    : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800'
+                    ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-950/50'
+                    : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-red-900/50'
                 }`}
               >
-                <Shield className="w-3.5 h-3.5" />
+                <Shield className="w-3.5 h-3.5 text-red-400" />
                 <span>Admin Panel</span>
               </button>
             )}
 
             {session ? (
               <div className="flex items-center space-x-2.5">
-                <div className="flex items-center space-x-2 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl">
-                  <div className="w-7 h-7 rounded-full overflow-hidden border border-zinc-700">
+                <div className="flex items-center space-x-2 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
+                  <div className="w-7 h-7 rounded-full overflow-hidden border border-red-500/30">
                     <img
                       src={
                         currentUser?.avatarUrl ||
@@ -190,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={onLogout}
                   title="Sign Out of Session"
-                  className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl transition-all"
+                  className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-red-400 bg-zinc-900 hover:bg-zinc-900/80 border border-zinc-800 hover:border-red-900/40 rounded-xl transition-all"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Sign Out</span>
@@ -199,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={onOpenLogin}
-                className="px-4 py-2 text-xs font-bold text-black bg-white hover:bg-zinc-200 rounded-xl shadow-md transition-all"
+                className="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 rounded-xl shadow-lg shadow-red-950/60 transition-all"
               >
                 Sign In
               </button>

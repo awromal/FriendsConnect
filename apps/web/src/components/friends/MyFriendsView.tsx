@@ -68,8 +68,8 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            My Friends
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            My <span className="text-red-500">Friends</span>
           </h1>
           <p className="text-zinc-400 text-xs sm:text-sm mt-1">
             Stay in touch with your direct connections through high-definition video and voice calling.
@@ -78,7 +78,7 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
 
         <button
           onClick={onExploreRadar}
-          className="px-4 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold flex items-center space-x-2 shadow-sm transition-all self-start sm:self-auto"
+          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-red-950/60 transition-all self-start sm:self-auto"
         >
           <Compass className="w-4 h-4" />
           <span>Explore New People</span>
@@ -86,7 +86,7 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -94,7 +94,7 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
             placeholder="Search by name, country, or tag..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-medium focus:outline-none focus:border-white"
+            className="w-full pl-10 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-medium focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50"
           />
         </div>
 
@@ -104,7 +104,7 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
               type="checkbox"
               checked={filterOnlineOnly}
               onChange={e => setFilterOnlineOnly(e.target.checked)}
-              className="rounded bg-zinc-950 border-zinc-700 text-white focus:ring-0"
+              className="rounded bg-zinc-950 border-zinc-700 text-red-600 focus:ring-0"
             />
             <span>Online Only</span>
           </label>
@@ -185,7 +185,7 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => handleStartCall(friend, 'video')}
-                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm"
+                    className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold flex items-center space-x-1.5 transition-all shadow-md shadow-red-950/60"
                   >
                     <Video className="w-3.5 h-3.5" />
                     <span>Video</span>
@@ -193,24 +193,24 @@ export const MyFriendsView: React.FC<MyFriendsViewProps> = ({
 
                   <button
                     onClick={() => handleStartCall(friend, 'voice')}
-                    className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-all"
+                    className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 hover:border-red-500/40 text-white border border-zinc-700 transition-all"
                     title="Voice Call"
                   >
-                    <Phone className="w-4 h-4" />
+                    <Phone className="w-4 h-4 text-zinc-300" />
                   </button>
 
                   <button
                     onClick={() => onOpenMessage(friend)}
-                    className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-all"
+                    className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 hover:border-red-500/40 text-zinc-300 hover:text-white border border-zinc-700 transition-all"
                     title="Send Message"
                   >
-                    <MessageSquare className="w-4 h-4" />
+                    <MessageSquare className="w-4 h-4 text-zinc-300" />
                   </button>
                 </div>
 
                 <button
                   onClick={() => handleRemoveFriend(friend.id)}
-                  className="p-2 rounded-xl text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                  className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-950/30 transition-all"
                   title="Remove from Friends"
                 >
                   <UserMinus className="w-4 h-4" />

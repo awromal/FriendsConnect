@@ -159,10 +159,10 @@ export const App: React.FC = () => {
 
         {currentTab === 'calls' && (
           <div className="max-w-4xl mx-auto px-4 py-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto mb-4 text-white">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-red-900/40 flex items-center justify-center mx-auto mb-4 text-red-500 shadow-xl shadow-red-950/30">
               <Video className="w-8 h-8" />
             </div>
-            <h1 className="text-3xl font-extrabold text-white mb-2">Live Video & Voice Calling Room</h1>
+            <h1 className="text-3xl font-black text-white mb-2">Live Video & Voice <span className="text-red-500">Calling Room</span></h1>
             <p className="text-sm text-zinc-400 max-w-lg mx-auto mb-8">
               Connect in crystal-clear peer-to-peer audio and video directly through your browser with end-to-end encryption.
             </p>
@@ -173,14 +173,14 @@ export const App: React.FC = () => {
                   const partner = INITIAL_PROFILES[1]; // Kenji
                   callService.startCall(currentUser, partner, 'video');
                 }}
-                className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-500 transition-all text-left group shadow-lg"
+                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-white group-hover:text-black transition-all">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
                   <Video className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-white">Kenji Sato</h3>
+                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Kenji Sato</h3>
                 <span className="text-[11px] text-zinc-400 font-medium block">Tokyo, Japan 🇯🇵</span>
-                <p className="text-[10px] text-zinc-500 mt-2">WebRTC Video Call</p>
+                <p className="text-[10px] text-red-400 mt-2 font-semibold">WebRTC Video Call</p>
               </button>
 
               <button
@@ -188,14 +188,14 @@ export const App: React.FC = () => {
                   const partner = INITIAL_PROFILES[3]; // Rohan
                   callService.startCall(currentUser, partner, 'video');
                 }}
-                className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-500 transition-all text-left group shadow-lg"
+                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-white group-hover:text-black transition-all">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
                   <Video className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-white">Rohan Sharma</h3>
+                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Rohan Sharma</h3>
                 <span className="text-[11px] text-zinc-400 font-medium block">Bengaluru, India 🇮🇳</span>
-                <p className="text-[10px] text-zinc-500 mt-2">WebRTC Video Call</p>
+                <p className="text-[10px] text-red-400 mt-2 font-semibold">WebRTC Video Call</p>
               </button>
 
               <button
@@ -203,14 +203,14 @@ export const App: React.FC = () => {
                   const partner = INITIAL_PROFILES[2]; // Amara
                   callService.startCall(currentUser, partner, 'voice');
                 }}
-                className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 hover:border-zinc-500 transition-all text-left group shadow-lg"
+                className="p-6 rounded-2xl bg-zinc-900/90 border border-zinc-800 hover:border-red-500/50 hover:shadow-xl hover:shadow-red-950/20 transition-all text-left group shadow-lg"
               >
-                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-white group-hover:text-black transition-all">
+                <div className="w-10 h-10 rounded-xl bg-zinc-800 text-white flex items-center justify-center mb-3 group-hover:bg-gradient-to-r group-hover:from-red-600 group-hover:to-rose-600 group-hover:text-white transition-all shadow-md">
                   <Phone className="w-5 h-5" />
                 </div>
-                <h3 className="text-sm font-bold text-white">Amara Okafor</h3>
+                <h3 className="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Amara Okafor</h3>
                 <span className="text-[11px] text-zinc-400 font-medium block">Lagos, Nigeria 🇳🇬</span>
-                <p className="text-[10px] text-zinc-500 mt-2">HD Voice Stream</p>
+                <p className="text-[10px] text-red-400 mt-2 font-semibold">HD Voice Stream</p>
               </button>
             </div>
           </div>
@@ -251,9 +251,9 @@ export const App: React.FC = () => {
 
       {/* Sign Out Confirmation Modal to prevent accidental logout */}
       {showSignOutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl text-center">
-            <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200 mx-auto mb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-zinc-900 border border-red-900/40 rounded-2xl p-6 shadow-2xl text-center shadow-red-950/30">
+            <div className="w-12 h-12 rounded-xl bg-red-950/50 border border-red-800/50 flex items-center justify-center text-red-400 mx-auto mb-3 shadow-md">
               <LogOut className="w-5 h-5" />
             </div>
             <h3 className="text-base font-bold text-white mb-1">Confirm Sign Out</h3>
@@ -269,7 +269,7 @@ export const App: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmSignOut}
-                className="flex-1 py-2.5 rounded-xl bg-white hover:bg-zinc-200 text-black font-bold text-xs transition-all shadow-sm"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs transition-all shadow-md shadow-red-950/60"
               >
                 Sign Out
               </button>

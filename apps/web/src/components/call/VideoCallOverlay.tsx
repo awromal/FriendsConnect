@@ -263,7 +263,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({ onReportUser
               <div
                 onClick={() => setSwapViews(!swapViews)}
                 title="Click to switch main view"
-                className="absolute top-4 right-4 w-36 h-28 sm:w-56 sm:h-40 bg-zinc-800 rounded-2xl overflow-hidden border-2 border-white/80 shadow-2xl z-20 cursor-pointer group hover:scale-105 transition-all"
+                className="absolute top-4 right-4 w-36 h-28 sm:w-56 sm:h-40 bg-zinc-800 rounded-2xl overflow-hidden border-2 border-red-500/80 shadow-2xl shadow-red-950/40 z-20 cursor-pointer group hover:scale-105 transition-all"
               >
                 {!swapViews ? (
                   /* PiP shows Local Camera */
@@ -303,11 +303,11 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({ onReportUser
           ) : (
             /* Voice-Only Mode */
             <div className="flex flex-col items-center justify-center text-center p-8 relative">
-              {/* Concentric Animated Voice Ripples */}
+              {/* Concentric Animated Voice Ripples with Red glow */}
               <div className="relative w-36 h-36 mx-auto mb-6 flex items-center justify-center">
-                <span className="absolute inset-0 rounded-full border border-white/20 animate-ping" />
-                <span className="absolute -inset-3 rounded-full border border-zinc-700/50 animate-pulse" />
-                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-white shadow-2xl relative z-10">
+                <span className="absolute inset-0 rounded-full border border-red-500/30 animate-ping" />
+                <span className="absolute -inset-3 rounded-full border border-red-600/20 animate-pulse" />
+                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-red-500 shadow-2xl shadow-red-950/50 relative z-10">
                   <img
                     src={partner?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400'}
                     alt={partner?.fullName}
@@ -321,22 +321,22 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({ onReportUser
                 {partner?.city ? `${partner.city}, ` : ''}{partner?.country || 'Global'}
               </p>
 
-              {/* Dynamic Live Audio Waveform Bars (Visually reactive to speaking cadence) */}
+              {/* Dynamic Live Audio Waveform Bars in Red & White */}
               <div className="flex items-center justify-center space-x-1.5 h-12 mb-4">
                 {[30, 65, 45, 90, 60, 85, 40, 95, 70, 80, 50, 75, 40, 60].map((h, i) => {
                   const activeHeight = isMuted ? 6 : Math.max(6, Math.round((h * (audioLevel || 35)) / 100));
                   return (
                     <div
                       key={i}
-                      className="w-1.5 bg-white rounded-full transition-all duration-75"
+                      className="w-1.5 bg-gradient-to-t from-red-600 to-rose-400 rounded-full transition-all duration-75"
                       style={{ height: `${activeHeight}px` }}
                     />
                   );
                 })}
               </div>
 
-              <div className="flex items-center space-x-2 text-zinc-300 bg-zinc-800 px-4 py-2 rounded-full border border-zinc-700 text-xs font-semibold">
-                <Volume2 className="w-4 h-4 text-white" />
+              <div className="flex items-center space-x-2 text-zinc-200 bg-zinc-800/90 px-4 py-2 rounded-full border border-red-900/30 text-xs font-semibold shadow-md shadow-red-950/20">
+                <Volume2 className="w-4 h-4 text-red-400" />
                 <span>Encrypted HD Voice Connected</span>
               </div>
             </div>

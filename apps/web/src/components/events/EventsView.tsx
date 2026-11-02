@@ -45,19 +45,19 @@ export const EventsView: React.FC<EventsViewProps> = ({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-semibold mb-2">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-semibold mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-red-400" />
             <span>Community Events & Organizations</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white">Global Events & Experiences</h1>
+          <h1 className="text-3xl font-black text-white">Global Events & <span className="text-red-500">Experiences</span></h1>
           <p className="text-sm text-zinc-400 mt-1 max-w-xl">
             Join virtual rooms, cultural exchanges, and local international mixers organized by verified global communities.
           </p>
         </div>
 
         {userTickets.length > 0 && (
-          <div className="bg-zinc-900 border border-zinc-800 px-4 py-2.5 rounded-2xl flex items-center space-x-3">
-            <TicketIcon className="w-5 h-5 text-white" />
+          <div className="bg-zinc-900/90 border border-red-900/40 px-4 py-2.5 rounded-2xl flex items-center space-x-3 shadow-lg shadow-red-950/20">
+            <TicketIcon className="w-5 h-5 text-red-400" />
             <div>
               <span className="text-xs text-zinc-400 block">Your Active Tickets</span>
               <span className="text-sm font-bold text-white">{userTickets.length} Event Pass(es)</span>
@@ -74,7 +74,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
           return (
             <div
               key={event.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-700 transition-all flex flex-col shadow-lg"
+              className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-red-500/40 transition-all flex flex-col shadow-lg hover:shadow-xl hover:shadow-red-950/20 group"
             >
               {/* Event Banner */}
               <div className="relative h-48 w-full bg-zinc-950 overflow-hidden">
@@ -87,7 +87,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
                   <span
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-full backdrop-blur-md uppercase tracking-wider ${
                       event.format === 'virtual'
-                        ? 'bg-white text-black'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-950/50'
                         : 'bg-zinc-800 text-white border border-zinc-700'
                     }`}
                   >
@@ -103,7 +103,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
                     className={`text-xs font-bold px-3 py-1 rounded-full shadow-lg ${
                       isFree
                         ? 'bg-zinc-800 text-white border border-zinc-700'
-                        : 'bg-white text-black font-black'
+                        : 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-black shadow-md shadow-red-950/60'
                     }`}
                   >
                     {isFree ? 'FREE RSVP' : `$${event.ticketPrice.toFixed(2)}`}
@@ -161,7 +161,7 @@ export const EventsView: React.FC<EventsViewProps> = ({
 
                   <button
                     onClick={() => handleCheckout(event)}
-                    className="flex items-center space-x-1.5 px-4 py-2 bg-white hover:bg-zinc-200 text-black rounded-xl text-xs font-bold transition-all shadow-sm"
+                    className="flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-red-950/60"
                   >
                     <TicketIcon className="w-3.5 h-3.5" />
                     <span>{isFree ? 'Join Event' : 'Get Tickets'}</span>

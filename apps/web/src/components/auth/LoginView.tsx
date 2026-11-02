@@ -138,12 +138,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       <div className="max-w-2xl mx-auto w-full relative z-10">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-medium mb-3">
-            <ShieldCheck className="w-4 h-4 text-white" />
+          <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-semibold mb-3">
+            <ShieldCheck className="w-4 h-4 text-red-400" />
             <span>Role-Based Authentication Gateway</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-            Friends<span className="text-zinc-400">Connect</span>
+            Friends<span className="text-red-500">Connect</span>
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
             Standard secure access for Community Members, Event Teams, and Administrators.
@@ -157,7 +157,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             onClick={() => handleSwitchPortal('user')}
             className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-2 ${
               activePortal === 'user'
-                ? 'bg-white text-black shadow-sm'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -170,7 +170,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             onClick={() => handleSwitchPortal('organizer')}
             className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-2 ${
               activePortal === 'organizer'
-                ? 'bg-white text-black shadow-sm'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -183,7 +183,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             onClick={() => handleSwitchPortal('admin')}
             className={`flex-1 py-2.5 px-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center space-x-2 ${
               activePortal === 'admin'
-                ? 'bg-white text-black shadow-sm'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-lg shadow-red-950/60'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
@@ -458,7 +458,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl text-xs font-bold transition-all bg-white hover:bg-zinc-200 text-black shadow-md flex items-center justify-center space-x-2 mt-4"
+              className="w-full py-3.5 rounded-xl text-xs font-black transition-all bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-xl shadow-red-950/70 flex items-center justify-center space-x-2 mt-4 hover:scale-[1.01]"
             >
               {activePortal === 'user' ? (
                 userMode === 'signup' ? (

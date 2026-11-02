@@ -126,7 +126,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
                   key={friend.id}
                   onClick={() => setActiveFriend(friend)}
                   className={`p-3.5 flex items-center space-x-3 cursor-pointer transition-all ${
-                    isSelected ? 'bg-zinc-800/80 border-l-4 border-white' : 'hover:bg-zinc-900/50'
+                    isSelected ? 'bg-zinc-800/80 border-l-4 border-red-500' : 'hover:bg-zinc-900/50'
                   }`}
                 >
                   <div className="relative">
@@ -175,23 +175,23 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setShowE2EEModal(true)}
-                className="px-2.5 py-1.5 text-xs text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 text-xs text-zinc-300 bg-zinc-800/90 hover:bg-zinc-800 border border-zinc-700/80 hover:border-red-500/40 rounded-xl transition-all flex items-center space-x-1.5 cursor-pointer"
                 title="Click to view End-to-End Encryption safety verification code"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                <ShieldCheck className="w-3.5 h-3.5 text-red-400" />
                 <span className="hidden sm:inline font-medium">End-to-End Encrypted</span>
               </button>
 
               <button
                 onClick={() => handleStartCall('video')}
-                className="p-2 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl transition-all"
+                className="p-2 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-red-950/60 border border-zinc-700 hover:border-red-500/50 rounded-xl transition-all"
                 title="Start Video Call"
               >
                 <Video className="w-4 h-4 text-white" />
               </button>
               <button
                 onClick={() => handleStartCall('voice')}
-                className="p-2 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl transition-all"
+                className="p-2 text-zinc-300 hover:text-white bg-zinc-800 hover:bg-red-950/60 border border-zinc-700 hover:border-red-500/50 rounded-xl transition-all"
                 title="Start Voice Call"
               >
                 <Phone className="w-4 h-4 text-white" />
@@ -222,12 +222,12 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
                   <div
                     className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                       isMine
-                        ? 'bg-white text-black font-medium rounded-br-none shadow-sm'
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-medium rounded-br-none shadow-md shadow-red-950/40'
                         : 'bg-zinc-800 text-zinc-100 rounded-bl-none border border-zinc-700/60'
                     }`}
                   >
                     <p>{msg.content}</p>
-                    <span className={`text-[9px] flex items-center justify-end space-x-1 mt-1 ${isMine ? 'text-zinc-500' : 'text-zinc-400'}`}>
+                    <span className={`text-[9px] flex items-center justify-end space-x-1 mt-1 ${isMine ? 'text-red-200' : 'text-zinc-400'}`}>
                       <Lock className="w-2.5 h-2.5" />
                       <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </span>
@@ -245,12 +245,12 @@ export const MessagesView: React.FC<MessagesViewProps> = ({ currentUser }) => {
               value={inputVal}
               onChange={e => setInputVal(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-              className="flex-1 px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white"
+              className="flex-1 px-4 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/50"
             />
             <button
               onClick={handleSendMessage}
               disabled={!inputVal.trim()}
-              className="p-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black rounded-xl shadow-sm transition-all"
+              className="p-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-40 text-white rounded-xl shadow-md shadow-red-950/50 transition-all"
             >
               <Send className="w-4 h-4" />
             </button>

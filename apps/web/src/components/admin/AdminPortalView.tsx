@@ -182,11 +182,11 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-semibold mb-2">
-            <ShieldAlert className="w-3.5 h-3.5 text-zinc-400" />
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-red-950/50 border border-red-800/40 text-red-300 text-xs font-semibold mb-2">
+            <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
             <span>Administrator Control Center</span>
           </div>
-          <h1 className="text-3xl font-extrabold text-white">Platform Governance & Financials</h1>
+          <h1 className="text-3xl font-black text-white">Platform Governance & <span className="text-red-500">Financials</span></h1>
           <p className="text-xs sm:text-sm text-zinc-400 mt-1">
             Enforce community safety guidelines, restrict actions, review abuse tickets, and manage event promo codes.
           </p>
@@ -197,8 +197,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
             onClick={() => setActiveTab('users')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'users'
-                ? 'bg-white text-black shadow-sm'
-                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-md shadow-red-950/60'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-red-900/40'
             }`}
           >
             Users ({profiles.length})
@@ -207,8 +207,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
             onClick={() => setActiveTab('reports')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'reports'
-                ? 'bg-white text-black shadow-sm'
-                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-md shadow-red-950/60'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-red-900/40'
             }`}
           >
             Abuse Queue ({reports.filter(r => r.status === 'pending').length})
@@ -217,8 +217,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
             onClick={() => setActiveTab('promos')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
               activeTab === 'promos'
-                ? 'bg-white text-black shadow-sm'
-                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold shadow-md shadow-red-950/60'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-red-900/40'
             }`}
           >
             Promos & Finance
