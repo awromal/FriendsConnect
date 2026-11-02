@@ -12,23 +12,38 @@
   },
   "rewrites": [
     {
-      "source": "/admin/(.*)",
+      "source": "/admin/assets/(.*)",
       "destination": {
         "service": "admin",
-        "path": "/$1"
+        "path": "/assets/$1"
       }
     },
     {
-      "source": "/admin",
+      "source": "/admin(.*)",
       "destination": {
         "service": "admin",
-        "path": "/"
+        "path": "/index.html"
+      }
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": {
+        "service": "web",
+        "path": "/assets/$1"
+      }
+    },
+    {
+      "source": "/vite.svg",
+      "destination": {
+        "service": "web",
+        "path": "/vite.svg"
       }
     },
     {
       "source": "/(.*)",
       "destination": {
-        "service": "web"
+        "service": "web",
+        "path": "/index.html"
       }
     }
   ]
